@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -9,8 +10,17 @@ public class Block : MonoBehaviour
     private const int ShapeSpritePaddingPixels = 1;
     private const float ShapeSpriteDarkenAmount = 0.18f;
     private const float ShadowDarkenAmount = 0.28f;
+    private const string ScrewObjectName = "Screws";
+    private const float FixedScrewReleaseDuration = 1f;
+    private const float FixedScrewLiftDistance = 0.45f;
+    private const float FixedScrewSpinDegrees = 720f;
+    private const float TraySpawnJellyDuration = 0.65f;
+    private const float TraySpawnRiseDistanceCells = 1.4f;
+    private const float CompletedColorBounceDuration = 0.28f;
+    private const float CompletedColorBounceHeightCells = 0.18f;
 
     private readonly List<ColoredCellData> cells = new List<ColoredCellData>();
+    private readonly List<SpriteRenderer> screwRenderers = new List<SpriteRenderer>();
 
     private HolderBoardController holderBoard;
     private TrayBoardController trayBoard;
@@ -23,6 +33,9 @@ public class Block : MonoBehaviour
     private Vector2Int previousHolderAnchor;
     private bool isDragging;
     private bool shapeSpriteVisible = true;
+    private bool hasFixedScrews;
+    private bool fixedScrewReleaseStarted;
+    private Coroutine traySpawnJellyCoroutine;
     private Texture2D shapeTexture;
     private Sprite shapeSprite;
     private SpriteRenderer shapeSpriteRenderer;
@@ -74,6 +87,8 @@ public class Block : MonoBehaviour
         cellSize = GetPrefabCellSize(singleBlockPrefab);
         State = PieceState.InTray;
         IsMovable = true;
+        hasFixedScrews = false;
+        fixedScrewReleaseStarted = false;
 
         cells.Clear();
         cells.AddRange(data.cells);
@@ -97,6 +112,8 @@ public class Block : MonoBehaviour
         cellSize = GetPrefabCellSize(singleBlockPrefab);
         State = PieceState.PlacedOnHolder;
         IsMovable = false;
+        hasFixedScrews = true;
+        fixedScrewReleaseStarted = false;
 
         cells.Clear();
         cells.AddRange(data.cells);
@@ -107,11 +124,23 @@ public class Block : MonoBehaviour
 
     public void MoveToTray(Vector2Int trayPosition)
     {
+        StopTraySpawnJelly(true);
         trayWorldPosition = trayBoard.GridToWorld(trayPosition);
         transform.position = trayWorldPosition;
         State = PieceState.InTray;
         SetBlockShadowVisible(true);
         SetSortingOrder(20);
+    }
+
+    public void PlayTraySpawnJelly(float delaySeconds)
+    {
+        if (!IsMovable || State != PieceState.InTray)
+        {
+            return;
+        }
+
+        StopTraySpawnJelly(false);
+        traySpawnJellyCoroutine = StartCoroutine(PlayTraySpawnJellyRoutine(Mathf.Max(0f, delaySeconds), transform.localScale, transform.position));
     }
 
     public void SnapToHolder(Vector2Int anchor)
@@ -127,6 +156,8 @@ public class Block : MonoBehaviour
 
     private void BuildVisuals()
     {
+        screwRenderers.Clear();
+
         for (int i = transform.childCount - 1; i >= 0; i--)
         {
             Destroy(transform.GetChild(i).gameObject);
@@ -147,10 +178,38 @@ public class Block : MonoBehaviour
 
             cell.Setup(cellData.offset, cellData.color, holderBoard.GetColor(cellData.color), 20);
             ApplyBlockShadowColor(cellObject, holderBoard.GetColor(cellData.color));
+            ConfigureScrew(cellObject, hasFixedScrews, 20);
         }
 
         BuildShapeSprite();
         RemoveRootCollider();
+    }
+
+    private void ConfigureScrew(GameObject cellObject, bool visible, int sortingOrder)
+    {
+        Transform screwTransform = cellObject.transform.Find(ScrewObjectName);
+        if (screwTransform == null)
+        {
+            return;
+        }
+
+        SpriteRenderer[] renderers = screwTransform.GetComponentsInChildren<SpriteRenderer>(true);
+        foreach (SpriteRenderer spriteRenderer in renderers)
+        {
+            spriteRenderer.enabled = visible;
+            spriteRenderer.sortingOrder = GetRendererSortingOrder(spriteRenderer, sortingOrder);
+
+            Color color = spriteRenderer.color;
+            color.a = 1f;
+            spriteRenderer.color = color;
+
+            if (visible)
+            {
+                screwRenderers.Add(spriteRenderer);
+            }
+        }
+
+        screwTransform.gameObject.SetActive(visible);
     }
 
     private void BuildShapeSprite()
@@ -274,6 +333,294 @@ public class Block : MonoBehaviour
         }
     }
 
+    public void PlayFixedScrewReleaseIfNeeded()
+    {
+        if (!hasFixedScrews || fixedScrewReleaseStarted)
+        {
+            return;
+        }
+
+        fixedScrewReleaseStarted = true;
+        StartCoroutine(ReleaseFixedScrews());
+    }
+
+    public void PlayCompletedColorBounce(BlockColorId colorId)
+    {
+        if (State != PieceState.PlacedOnHolder)
+        {
+            return;
+        }
+
+        foreach (Cell cell in GetComponentsInChildren<Cell>(true))
+        {
+            if (cell.ColorId == colorId)
+            {
+                StartCoroutine(BounceCell(cell.transform, 0f, CompletedColorBounceDuration, CompletedColorBounceHeightCells));
+            }
+        }
+    }
+
+    public void CollectPlacedCells(List<Cell> placedCells)
+    {
+        if (State != PieceState.PlacedOnHolder || placedCells == null)
+        {
+            return;
+        }
+
+        foreach (Cell cell in GetComponentsInChildren<Cell>(true))
+        {
+            placedCells.Add(cell);
+        }
+    }
+
+    public void DetachCompletedColorCells(BlockColorId colorId, Transform detachedParent, List<Cell> detachedCells)
+    {
+        if (State != PieceState.PlacedOnHolder)
+        {
+            return;
+        }
+
+        bool detachedAnyCell = false;
+        Cell[] childCells = GetComponentsInChildren<Cell>(true);
+        foreach (Cell cell in childCells)
+        {
+            if (cell == null || cell.ColorId != colorId)
+            {
+                continue;
+            }
+
+            cell.transform.SetParent(detachedParent, true);
+            detachedAnyCell = true;
+
+            if (detachedCells != null && !detachedCells.Contains(cell))
+            {
+                detachedCells.Add(cell);
+            }
+        }
+
+        if (detachedAnyCell)
+        {
+            SetShapeSpriteVisible(false);
+        }
+    }
+
+    private IEnumerator BounceCell(Transform cellTransform, float delaySeconds, float duration, float heightInCells)
+    {
+        if (cellTransform == null)
+        {
+            yield break;
+        }
+
+        if (delaySeconds > 0f)
+        {
+            yield return new WaitForSeconds(delaySeconds);
+        }
+
+        Vector3 startPosition = cellTransform.localPosition;
+        float elapsed = 0f;
+
+        while (elapsed < duration)
+        {
+            if (cellTransform == null)
+            {
+                yield break;
+            }
+
+            elapsed += Time.deltaTime;
+            float progress = Mathf.Clamp01(elapsed / duration);
+            float height = Mathf.Sin(progress * Mathf.PI) * cellSize * heightInCells;
+            cellTransform.localPosition = startPosition + Vector3.up * height;
+            yield return null;
+        }
+
+        if (cellTransform != null)
+        {
+            cellTransform.localPosition = startPosition;
+        }
+    }
+
+    private IEnumerator PlayTraySpawnJellyRoutine(float delaySeconds, Vector3 targetScale, Vector3 targetPosition)
+    {
+        Vector3 localVisualCenter = GetLocalVisualCenter();
+        Vector3 targetCenter = GetWorldVisualCenter(targetPosition, targetScale, localVisualCenter);
+        Vector3 startCenter = targetCenter + Vector3.down * cellSize * TraySpawnRiseDistanceCells;
+
+        transform.localScale = Vector3.zero;
+        transform.position = GetRootPositionForVisualCenter(startCenter, transform.localScale, localVisualCenter);
+
+        if (delaySeconds > 0f)
+        {
+            yield return new WaitForSeconds(delaySeconds);
+        }
+
+        float elapsed = 0f;
+        while (elapsed < TraySpawnJellyDuration)
+        {
+            elapsed += Time.deltaTime;
+            float progress = Mathf.Clamp01(elapsed / TraySpawnJellyDuration);
+            float easedProgress = Mathf.SmoothStep(0f, 1f, progress);
+            Vector3 currentScale = Vector3.Scale(targetScale, GetJellySpawnScale(easedProgress));
+            Vector3 currentCenter = Vector3.LerpUnclamped(startCenter, targetCenter, GetJellyRiseProgress(progress));
+
+            transform.localScale = currentScale;
+            transform.position = GetRootPositionForVisualCenter(currentCenter, currentScale, localVisualCenter);
+            yield return null;
+        }
+
+        transform.position = targetPosition;
+        transform.localScale = targetScale;
+        traySpawnJellyCoroutine = null;
+    }
+
+    private Vector3 GetLocalVisualCenter()
+    {
+        if (cells.Count == 0)
+        {
+            return Vector3.zero;
+        }
+
+        Vector2Int min = cells[0].offset;
+        Vector2Int max = cells[0].offset;
+
+        foreach (ColoredCellData cell in cells)
+        {
+            min.x = Mathf.Min(min.x, cell.offset.x);
+            min.y = Mathf.Min(min.y, cell.offset.y);
+            max.x = Mathf.Max(max.x, cell.offset.x);
+            max.y = Mathf.Max(max.y, cell.offset.y);
+        }
+
+        return new Vector3((min.x + max.x) * 0.5f * cellSize, (min.y + max.y) * 0.5f * cellSize, 0f);
+    }
+
+    private Vector3 GetWorldVisualCenter(Vector3 rootPosition, Vector3 rootScale, Vector3 localVisualCenter)
+    {
+        return rootPosition + Vector3.Scale(localVisualCenter, rootScale);
+    }
+
+    private Vector3 GetRootPositionForVisualCenter(Vector3 visualCenter, Vector3 rootScale, Vector3 localVisualCenter)
+    {
+        return visualCenter - Vector3.Scale(localVisualCenter, rootScale);
+    }
+
+    private float GetJellyRiseProgress(float progress)
+    {
+        if (progress < 0.7f)
+        {
+            return Mathf.SmoothStep(0f, 1.03f, progress / 0.7f);
+        }
+
+        float settleProgress = (progress - 0.7f) / 0.3f;
+        return Mathf.Lerp(1.03f, 1f, Mathf.SmoothStep(0f, 1f, settleProgress));
+    }
+
+    private Vector3 GetJellySpawnScale(float progress)
+    {
+        if (progress < 0.32f)
+        {
+            float segmentProgress = progress / 0.32f;
+            float scale = Mathf.SmoothStep(0f, 1.08f, segmentProgress);
+            return new Vector3(scale * 1.04f, scale * 0.96f, 1f);
+        }
+
+        if (progress < 0.56f)
+        {
+            float segmentProgress = (progress - 0.32f) / 0.24f;
+            return Vector3.Lerp(new Vector3(1.04f, 0.96f, 1f), new Vector3(0.97f, 1.04f, 1f), Mathf.SmoothStep(0f, 1f, segmentProgress));
+        }
+
+        if (progress < 0.78f)
+        {
+            float segmentProgress = (progress - 0.56f) / 0.22f;
+            return Vector3.Lerp(new Vector3(0.97f, 1.04f, 1f), new Vector3(1.02f, 0.99f, 1f), Mathf.SmoothStep(0f, 1f, segmentProgress));
+        }
+
+        float finalProgress = (progress - 0.78f) / 0.22f;
+        return Vector3.Lerp(new Vector3(1.02f, 0.99f, 1f), Vector3.one, Mathf.SmoothStep(0f, 1f, finalProgress));
+    }
+
+    private void StopTraySpawnJelly(bool resetScale)
+    {
+        if (traySpawnJellyCoroutine != null)
+        {
+            StopCoroutine(traySpawnJellyCoroutine);
+            traySpawnJellyCoroutine = null;
+        }
+
+        if (resetScale)
+        {
+            transform.localScale = Vector3.one;
+            transform.position = trayWorldPosition;
+        }
+    }
+
+    private IEnumerator ReleaseFixedScrews()
+    {
+        List<SpriteRenderer> activeScrews = new List<SpriteRenderer>();
+        foreach (SpriteRenderer screwRenderer in screwRenderers)
+        {
+            if (screwRenderer != null)
+            {
+                activeScrews.Add(screwRenderer);
+            }
+        }
+
+        if (activeScrews.Count == 0)
+        {
+            yield break;
+        }
+
+        Vector3[] startPositions = new Vector3[activeScrews.Count];
+        Quaternion[] startRotations = new Quaternion[activeScrews.Count];
+        Color[] startColors = new Color[activeScrews.Count];
+
+        for (int i = 0; i < activeScrews.Count; i++)
+        {
+            Transform screwTransform = activeScrews[i].transform;
+            startPositions[i] = screwTransform.localPosition;
+            startRotations[i] = screwTransform.localRotation;
+            startColors[i] = activeScrews[i].color;
+        }
+
+        float elapsed = 0f;
+        while (elapsed < FixedScrewReleaseDuration)
+        {
+            elapsed += Time.deltaTime;
+            float progress = Mathf.Clamp01(elapsed / FixedScrewReleaseDuration);
+            float easedProgress = Mathf.SmoothStep(0f, 1f, progress);
+
+            for (int i = 0; i < activeScrews.Count; i++)
+            {
+                SpriteRenderer screwRenderer = activeScrews[i];
+                if (screwRenderer == null)
+                {
+                    continue;
+                }
+
+                Transform screwTransform = screwRenderer.transform;
+                screwTransform.localPosition = startPositions[i] + Vector3.up * FixedScrewLiftDistance * easedProgress;
+                screwTransform.localRotation = startRotations[i] * Quaternion.Euler(0f, 0f, FixedScrewSpinDegrees * easedProgress);
+
+                Color color = startColors[i];
+                color.a = Mathf.Lerp(startColors[i].a, 0f, progress);
+                screwRenderer.color = color;
+            }
+
+            yield return null;
+        }
+
+        foreach (SpriteRenderer screwRenderer in activeScrews)
+        {
+            if (screwRenderer == null)
+            {
+                continue;
+            }
+
+            screwRenderer.enabled = false;
+            screwRenderer.gameObject.SetActive(false);
+        }
+    }
+
     private void FillShapeTextureRect(int startX, int startY, int width, int height, Color color, int textureWidth, int textureHeight)
     {
         int endX = Mathf.Min(startX + width, textureWidth);
@@ -353,6 +700,7 @@ public class Block : MonoBehaviour
 
         isDragging = true;
         activeDragBlock = this;
+        StopTraySpawnJelly(true);
 
         if (State == PieceState.InTray)
         {
@@ -549,6 +897,11 @@ public class Block : MonoBehaviour
         if (spriteRenderer.name == "Visual")
         {
             return baseSortingOrder + 2;
+        }
+
+        if (spriteRenderer.name == ScrewObjectName)
+        {
+            return baseSortingOrder + 3;
         }
 
         return baseSortingOrder;

@@ -1,8 +1,17 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
 public class LevelManager : MonoBehaviour
 {
+    private const string SavedLevelIndexKey = "BlockFit.CurrentLevelIndex";
+    private const float WaveBlockSpawnJellyDelay = 0.06f;
+    private const float LevelCompleteRippleStartDelay = 0.2f;
+    private const float LevelCompleteRippleEndDelay = 0.12f;
+    private const float LevelCompleteCellRippleDuration = 0.34f;
+    private const float LevelCompleteCellRippleHeightCells = 0.24f;
+    private const float LevelCompleteCellRippleDelaySpan = 0.5f;
+
     [Header("Scene References")]
     [SerializeField] private HolderBoardController holderBoard;
     [SerializeField] private TrayBoardController trayBoard;
@@ -21,9 +30,14 @@ public class LevelManager : MonoBehaviour
 
     private readonly List<Block> allBlocks = new List<Block>();
     private readonly List<Block> currentWaveBlocks = new List<Block>();
+    private readonly List<Cell> detachedCompletedCells = new List<Cell>();
+    private readonly List<Cell> newlyDetachedCells = new List<Cell>();
+    private readonly List<Cell> levelCompleteRippleCells = new List<Cell>();
+    private readonly HashSet<BlockColorId> completedColorIds = new HashSet<BlockColorId>();
     private int currentWaveIndex;
     private int activeLevelIndex = -1;
     private bool allWavesSpawned;
+    private bool levelCompleteSequenceStarted;
 
     public int CurrentLevelNumber
     {
@@ -67,6 +81,9 @@ public class LevelManager : MonoBehaviour
         trayBoard.BuildTray(traySize);
         SpawnFixedBlocks();
         RefreshCompletedBlockShapeSprites();
+        completedColorIds.Clear();
+        RefreshCompletedColors(false);
+        levelCompleteSequenceStarted = false;
 
         currentWaveIndex = 0;
         allWavesSpawned = waves.Count == 0;
@@ -75,9 +92,9 @@ public class LevelManager : MonoBehaviour
         {
             SpawnWave(currentWaveIndex);
         }
-        else if (holderBoard.IsComplete() && GameManager.Instance != null)
+        else if (holderBoard.IsComplete())
         {
-            GameManager.Instance.Win();
+            PlayLevelCompleteSequenceIfNeeded();
         }
     }
 
@@ -101,6 +118,7 @@ public class LevelManager : MonoBehaviour
 
         ApplyLevelPrefab(levelPrefabs[levelIndex]);
         activeLevelIndex = levelIndex;
+        SaveCurrentLevelIndex();
         return true;
     }
 
@@ -132,10 +150,11 @@ public class LevelManager : MonoBehaviour
         }
 
         RefreshCompletedBlockShapeSprites();
+        RefreshCompletedColors(true);
 
         if (holderBoard.IsComplete() && allWavesSpawned)
         {
-            GameManager.Instance.Win();
+            PlayLevelCompleteSequenceIfNeeded();
             return;
         }
 
@@ -152,14 +171,22 @@ public class LevelManager : MonoBehaviour
             return;
         }
 
-        int levelIndex = activeLevelIndex >= 0 ? activeLevelIndex : startingLevelIndex;
+        int levelIndex = activeLevelIndex >= 0 ? activeLevelIndex : GetSavedLevelIndex();
         levelIndex = Mathf.Clamp(levelIndex, 0, levelPrefabs.Count - 1);
 
-        if (levelPrefabs[levelIndex] != null)
+        if (levelPrefabs[levelIndex] == null)
         {
-            ApplyLevelPrefab(levelPrefabs[levelIndex]);
-            activeLevelIndex = levelIndex;
+            levelIndex = FindNextPlayableLevelIndex(levelIndex);
         }
+
+        if (levelIndex < 0 || levelPrefabs[levelIndex] == null)
+        {
+            return;
+        }
+
+        ApplyLevelPrefab(levelPrefabs[levelIndex]);
+        activeLevelIndex = levelIndex;
+        SaveCurrentLevelIndex();
     }
 
     private int GetPlayableLevelCount()
@@ -174,6 +201,43 @@ public class LevelManager : MonoBehaviour
         }
 
         return count;
+    }
+
+    private int GetSavedLevelIndex()
+    {
+        int defaultLevelIndex = Mathf.Clamp(startingLevelIndex, 0, Mathf.Max(0, levelPrefabs.Count - 1));
+        return PlayerPrefs.GetInt(SavedLevelIndexKey, defaultLevelIndex);
+    }
+
+    private void SaveCurrentLevelIndex()
+    {
+        if (activeLevelIndex < 0)
+        {
+            return;
+        }
+
+        PlayerPrefs.SetInt(SavedLevelIndexKey, activeLevelIndex);
+        PlayerPrefs.Save();
+    }
+
+    private int FindNextPlayableLevelIndex(int fromLevelIndex)
+    {
+        if (levelPrefabs.Count == 0)
+        {
+            return -1;
+        }
+
+        int startIndex = Mathf.Clamp(fromLevelIndex, 0, levelPrefabs.Count - 1);
+        for (int offset = 0; offset < levelPrefabs.Count; offset++)
+        {
+            int levelIndex = (startIndex + offset) % levelPrefabs.Count;
+            if (levelPrefabs[levelIndex] != null)
+            {
+                return levelIndex;
+            }
+        }
+
+        return -1;
     }
 
     private void ApplyLevelPrefab(LevelPrefab levelPrefab)
@@ -193,9 +257,9 @@ public class LevelManager : MonoBehaviour
         {
             allWavesSpawned = true;
 
-            if (holderBoard.IsComplete() && GameManager.Instance != null)
+            if (holderBoard.IsComplete())
             {
-                GameManager.Instance.Win();
+                PlayLevelCompleteSequenceIfNeeded();
             }
 
             return;
@@ -209,13 +273,15 @@ public class LevelManager : MonoBehaviour
         currentWaveBlocks.Clear();
 
         PieceWaveData wave = waves[waveIndex];
-        foreach (LevelPieceData pieceData in wave.pieces)
+        for (int pieceIndex = 0; pieceIndex < wave.pieces.Count; pieceIndex++)
         {
+            LevelPieceData pieceData = wave.pieces[pieceIndex];
             GameObject blockObject = new GameObject(string.IsNullOrWhiteSpace(pieceData.id) ? "Block" : $"Block_{pieceData.id}");
             blockObject.transform.SetParent(transform, true);
 
             Block block = blockObject.AddComponent<Block>();
             block.Initialize(pieceData, holderBoard, trayBoard, this, singleBlockPrefab);
+            block.PlayTraySpawnJelly(pieceIndex * WaveBlockSpawnJellyDelay);
 
             allBlocks.Add(block);
             currentWaveBlocks.Add(block);
@@ -255,6 +321,189 @@ public class LevelManager : MonoBehaviour
 
             bool shouldHideShapeSprite = block.State == PieceState.PlacedOnHolder && holderBoard.AreBlockColorsComplete(block);
             block.SetShapeSpriteVisible(!shouldHideShapeSprite);
+
+            if (shouldHideShapeSprite)
+            {
+                block.PlayFixedScrewReleaseIfNeeded();
+            }
+        }
+    }
+
+    private void RefreshCompletedColors(bool playBounce)
+    {
+        foreach (BlockColorId colorId in System.Enum.GetValues(typeof(BlockColorId)))
+        {
+            if (colorId == BlockColorId.None || completedColorIds.Contains(colorId) || !holderBoard.IsColorComplete(colorId))
+            {
+                continue;
+            }
+
+            completedColorIds.Add(colorId);
+
+            if (playBounce)
+            {
+                DetachCompletedColorCells(colorId);
+                PlayCompletedColorBounce();
+            }
+        }
+    }
+
+    private void DetachCompletedColorCells(BlockColorId colorId)
+    {
+        newlyDetachedCells.Clear();
+
+        foreach (Block block in allBlocks)
+        {
+            if (block != null)
+            {
+                block.DetachCompletedColorCells(colorId, transform, newlyDetachedCells);
+            }
+        }
+
+        foreach (Cell cell in newlyDetachedCells)
+        {
+            if (cell != null && !detachedCompletedCells.Contains(cell))
+            {
+                detachedCompletedCells.Add(cell);
+            }
+        }
+    }
+
+    private void PlayCompletedColorBounce()
+    {
+        foreach (Cell cell in newlyDetachedCells)
+        {
+            if (cell != null)
+            {
+                StartCoroutine(BounceCell(cell.transform, 0f, 0.28f, 0.18f));
+            }
+        }
+    }
+
+    private void PlayLevelCompleteSequenceIfNeeded()
+    {
+        if (levelCompleteSequenceStarted)
+        {
+            return;
+        }
+
+        levelCompleteSequenceStarted = true;
+        StartCoroutine(PlayLevelCompleteSequence());
+    }
+
+    private IEnumerator PlayLevelCompleteSequence()
+    {
+        yield return new WaitForSeconds(LevelCompleteRippleStartDelay);
+
+        levelCompleteRippleCells.Clear();
+        AddDetachedCompletedCellsToRipple();
+
+        foreach (Block block in allBlocks)
+        {
+            if (block != null)
+            {
+                block.CollectPlacedCells(levelCompleteRippleCells);
+            }
+        }
+
+        float waitDuration = PlayLevelCompleteCellRipple();
+        if (waitDuration > 0f)
+        {
+            yield return new WaitForSeconds(waitDuration + LevelCompleteRippleEndDelay);
+        }
+
+        if (GameManager.Instance != null && GameManager.Instance.CurrentState == GameState.Gameplay)
+        {
+            GameManager.Instance.Win();
+        }
+    }
+
+    private float PlayLevelCompleteCellRipple()
+    {
+        if (levelCompleteRippleCells.Count == 0)
+        {
+            return 0f;
+        }
+
+        float minWorldX = levelCompleteRippleCells[0].transform.position.x;
+        float maxWorldX = minWorldX;
+
+        foreach (Cell cell in levelCompleteRippleCells)
+        {
+            if (cell == null)
+            {
+                continue;
+            }
+
+            float worldX = cell.transform.position.x;
+            minWorldX = Mathf.Min(minWorldX, worldX);
+            maxWorldX = Mathf.Max(maxWorldX, worldX);
+        }
+
+        float longestDelay = 0f;
+        foreach (Cell cell in levelCompleteRippleCells)
+        {
+            if (cell == null)
+            {
+                continue;
+            }
+
+            float normalizedX = Mathf.Approximately(minWorldX, maxWorldX) ? 0f : Mathf.InverseLerp(minWorldX, maxWorldX, cell.transform.position.x);
+            float delay = normalizedX * LevelCompleteCellRippleDelaySpan;
+            longestDelay = Mathf.Max(longestDelay, delay);
+            StartCoroutine(BounceCell(cell.transform, delay, LevelCompleteCellRippleDuration, LevelCompleteCellRippleHeightCells));
+        }
+
+        return longestDelay + LevelCompleteCellRippleDuration;
+    }
+
+    private void AddDetachedCompletedCellsToRipple()
+    {
+        for (int i = detachedCompletedCells.Count - 1; i >= 0; i--)
+        {
+            Cell cell = detachedCompletedCells[i];
+            if (cell == null)
+            {
+                detachedCompletedCells.RemoveAt(i);
+                continue;
+            }
+
+            levelCompleteRippleCells.Add(cell);
+        }
+    }
+
+    private IEnumerator BounceCell(Transform cellTransform, float delaySeconds, float duration, float heightInCells)
+    {
+        if (cellTransform == null)
+        {
+            yield break;
+        }
+
+        if (delaySeconds > 0f)
+        {
+            yield return new WaitForSeconds(delaySeconds);
+        }
+
+        Vector3 startPosition = cellTransform.localPosition;
+        float elapsed = 0f;
+
+        while (elapsed < duration)
+        {
+            if (cellTransform == null)
+            {
+                yield break;
+            }
+
+            elapsed += Time.deltaTime;
+            float progress = Mathf.Clamp01(elapsed / duration);
+            float height = Mathf.Sin(progress * Mathf.PI) * holderBoard.CellSize * heightInCells;
+            cellTransform.localPosition = startPosition + Vector3.up * height;
+            yield return null;
+        }
+
+        if (cellTransform != null)
+        {
+            cellTransform.localPosition = startPosition;
         }
     }
 
@@ -288,6 +537,18 @@ public class LevelManager : MonoBehaviour
 
         allBlocks.Clear();
         currentWaveBlocks.Clear();
+
+        foreach (Cell cell in detachedCompletedCells)
+        {
+            if (cell != null)
+            {
+                Destroy(cell.gameObject);
+            }
+        }
+
+        detachedCompletedCells.Clear();
+        newlyDetachedCells.Clear();
+        levelCompleteRippleCells.Clear();
     }
 
     private float GetPrefabCellSize(GameObject prefab)

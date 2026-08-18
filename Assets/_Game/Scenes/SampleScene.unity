@@ -693,6 +693,7 @@ MonoBehaviour:
   - {fileID: 5764838771250373345, guid: 88dfdafff23dc478ca121d414bab67ea, type: 3}
   - {fileID: 8261264729165399267, guid: 41c81cf7281ee41b08f81cb165177013, type: 3}
   - {fileID: 6367176084994802365, guid: 6ad474c24f2d64d86bbd86ab48a14fcd, type: 3}
+  - {fileID: 5042255423459554369, guid: 7d725b1d8376c405ebcf4e01d11f200a, type: 3}
   startingLevelIndex: 0
   holderSize: {x: 3, y: 3}
   traySize: {x: 7, y: 3}
