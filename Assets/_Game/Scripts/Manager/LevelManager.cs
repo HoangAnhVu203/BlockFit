@@ -5,6 +5,8 @@ using UnityEngine;
 public class LevelManager : MonoBehaviour
 {
     private const string SavedLevelIndexKey = "BlockFit.CurrentLevelIndex";
+    private const int TrayBlockSortingOrderBase = 20;
+    private const int TrayBlockSortingOrderStep = 4;
     private const float WaveBlockSpawnJellyDelay = 0.06f;
     private const float LevelCompleteRippleStartDelay = 0.2f;
     private const float LevelCompleteRippleEndDelay = 0.12f;
@@ -38,6 +40,8 @@ public class LevelManager : MonoBehaviour
     private int activeLevelIndex = -1;
     private bool allWavesSpawned;
     private bool levelCompleteSequenceStarted;
+
+    public HolderBoardController HolderBoard => holderBoard;
 
     public int CurrentLevelNumber
     {
@@ -80,7 +84,7 @@ public class LevelManager : MonoBehaviour
         holderBoard.BuildHolder(holderSize, holderCells);
         trayBoard.BuildTray(traySize);
         SpawnFixedBlocks();
-        RefreshCompletedBlockShapeSprites();
+        RefreshCompletedBlockStrokes();
         completedColorIds.Clear();
         RefreshCompletedColors(false);
         levelCompleteSequenceStarted = false;
@@ -149,7 +153,7 @@ public class LevelManager : MonoBehaviour
             return;
         }
 
-        RefreshCompletedBlockShapeSprites();
+        RefreshCompletedBlockStrokes();
         RefreshCompletedColors(true);
 
         if (holderBoard.IsComplete() && allWavesSpawned)
@@ -280,7 +284,8 @@ public class LevelManager : MonoBehaviour
             blockObject.transform.SetParent(transform, true);
 
             Block block = blockObject.AddComponent<Block>();
-            block.Initialize(pieceData, holderBoard, trayBoard, this, singleBlockPrefab);
+            int traySortingOrder = TrayBlockSortingOrderBase + pieceIndex * TrayBlockSortingOrderStep;
+            block.Initialize(pieceData, holderBoard, trayBoard, this, singleBlockPrefab, traySortingOrder);
             block.PlayTraySpawnJelly(pieceIndex * WaveBlockSpawnJellyDelay);
 
             allBlocks.Add(block);
@@ -310,7 +315,7 @@ public class LevelManager : MonoBehaviour
         }
     }
 
-    public void RefreshCompletedBlockShapeSprites()
+    public void RefreshCompletedBlockStrokes()
     {
         foreach (Block block in allBlocks)
         {
@@ -319,10 +324,10 @@ public class LevelManager : MonoBehaviour
                 continue;
             }
 
-            bool shouldHideShapeSprite = block.State == PieceState.PlacedOnHolder && holderBoard.AreBlockColorsComplete(block);
-            block.SetShapeSpriteVisible(!shouldHideShapeSprite);
+            bool shouldHideStroke = block.State == PieceState.PlacedOnHolder && holderBoard.AreBlockColorsComplete(block);
+            block.SetStrokeVisible(!shouldHideStroke);
 
-            if (shouldHideShapeSprite)
+            if (shouldHideStroke)
             {
                 block.PlayFixedScrewReleaseIfNeeded();
             }
@@ -375,7 +380,7 @@ public class LevelManager : MonoBehaviour
         {
             if (cell != null)
             {
-                StartCoroutine(BounceCell(cell.transform, 0f, 0.28f, 0.18f));
+                PlayCellBounce(cell, 0f, 0.28f, holderBoard.CellSize * 0.18f);
             }
         }
     }
@@ -451,7 +456,7 @@ public class LevelManager : MonoBehaviour
             float normalizedX = Mathf.Approximately(minWorldX, maxWorldX) ? 0f : Mathf.InverseLerp(minWorldX, maxWorldX, cell.transform.position.x);
             float delay = normalizedX * LevelCompleteCellRippleDelaySpan;
             longestDelay = Mathf.Max(longestDelay, delay);
-            StartCoroutine(BounceCell(cell.transform, delay, LevelCompleteCellRippleDuration, LevelCompleteCellRippleHeightCells));
+            PlayCellBounce(cell, delay, LevelCompleteCellRippleDuration, holderBoard.CellSize * LevelCompleteCellRippleHeightCells);
         }
 
         return longestDelay + LevelCompleteCellRippleDuration;
@@ -472,39 +477,20 @@ public class LevelManager : MonoBehaviour
         }
     }
 
-    private IEnumerator BounceCell(Transform cellTransform, float delaySeconds, float duration, float heightInCells)
+    private void PlayCellBounce(Cell cell, float delaySeconds, float duration, float height)
     {
-        if (cellTransform == null)
+        if (cell == null)
         {
-            yield break;
+            return;
         }
 
-        if (delaySeconds > 0f)
+        CellBounceAnimator bounceAnimator = cell.GetComponent<CellBounceAnimator>();
+        if (bounceAnimator == null)
         {
-            yield return new WaitForSeconds(delaySeconds);
+            bounceAnimator = cell.gameObject.AddComponent<CellBounceAnimator>();
         }
 
-        Vector3 startPosition = cellTransform.localPosition;
-        float elapsed = 0f;
-
-        while (elapsed < duration)
-        {
-            if (cellTransform == null)
-            {
-                yield break;
-            }
-
-            elapsed += Time.deltaTime;
-            float progress = Mathf.Clamp01(elapsed / duration);
-            float height = Mathf.Sin(progress * Mathf.PI) * holderBoard.CellSize * heightInCells;
-            cellTransform.localPosition = startPosition + Vector3.up * height;
-            yield return null;
-        }
-
-        if (cellTransform != null)
-        {
-            cellTransform.localPosition = startPosition;
-        }
+        bounceAnimator.Play(delaySeconds, duration, height, holderBoard.RaisedCellSortingOrder);
     }
 
     private bool IsCurrentWavePlaced()

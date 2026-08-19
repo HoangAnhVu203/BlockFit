@@ -6,11 +6,13 @@ using UnityEngine.InputSystem;
 public class Block : MonoBehaviour
 {
     private static Block activeDragBlock;
-    private const int ShapeSpritePixelsPerCell = 32;
-    private const int ShapeSpritePaddingPixels = 1;
-    private const float ShapeSpriteDarkenAmount = 0.18f;
-    private const float ShadowDarkenAmount = 0.28f;
+    private const int DefaultTraySortingOrder = 20;
     private const string ScrewObjectName = "Screws";
+    private const string StrokeObjectName = "Stroke";
+    private const string VisualObjectName = "Visual";
+    private const int ShadowSortingOrderOffset = -11;
+    private const float StrokeInsetPixels = 1f;
+    private const float VisualJoinOverlapPixels = 1f;
     private const float FixedScrewReleaseDuration = 1f;
     private const float FixedScrewLiftDistance = 0.45f;
     private const float FixedScrewSpinDegrees = 720f;
@@ -27,18 +29,16 @@ public class Block : MonoBehaviour
     private LevelManager levelManager;
     private GameObject singleBlockPrefab;
     private float cellSize = 1f;
+    private int traySortingOrder = DefaultTraySortingOrder;
     private Vector3 dragOffset;
     private Vector3 trayWorldPosition;
     private Vector3 previousHolderWorldPosition;
     private Vector2Int previousHolderAnchor;
     private bool isDragging;
-    private bool shapeSpriteVisible = true;
+    private bool strokeVisible = true;
     private bool hasFixedScrews;
     private bool fixedScrewReleaseStarted;
     private Coroutine traySpawnJellyCoroutine;
-    private Texture2D shapeTexture;
-    private Sprite shapeSprite;
-    private SpriteRenderer shapeSpriteRenderer;
 
     public string Id { get; private set; }
     public PieceState State { get; private set; } = PieceState.InTray;
@@ -46,6 +46,15 @@ public class Block : MonoBehaviour
     public Vector2Int HolderAnchor { get; private set; }
     public float CellSize => cellSize;
     public IReadOnlyList<ColoredCellData> Cells => cells;
+
+    private enum StrokeDirection
+    {
+        Unknown,
+        Left,
+        Right,
+        Up,
+        Down
+    }
 
     private void Update()
     {
@@ -77,7 +86,8 @@ public class Block : MonoBehaviour
         HolderBoardController holder,
         TrayBoardController tray,
         LevelManager owner,
-        GameObject blockPrefab)
+        GameObject blockPrefab,
+        int initialTraySortingOrder = DefaultTraySortingOrder)
     {
         Id = string.IsNullOrWhiteSpace(data.id) ? gameObject.name : data.id;
         holderBoard = holder;
@@ -85,6 +95,7 @@ public class Block : MonoBehaviour
         levelManager = owner;
         singleBlockPrefab = blockPrefab;
         cellSize = GetPrefabCellSize(singleBlockPrefab);
+        traySortingOrder = initialTraySortingOrder;
         State = PieceState.InTray;
         IsMovable = true;
         hasFixedScrews = false;
@@ -129,7 +140,7 @@ public class Block : MonoBehaviour
         transform.position = trayWorldPosition;
         State = PieceState.InTray;
         SetBlockShadowVisible(true);
-        SetSortingOrder(20);
+        SetSortingOrder(traySortingOrder);
     }
 
     public void PlayTraySpawnJelly(float delaySeconds)
@@ -146,17 +157,26 @@ public class Block : MonoBehaviour
     public void SnapToHolder(Vector2Int anchor)
     {
         HolderAnchor = anchor;
-        transform.position = holderBoard.GridToWorld(anchor);
+        transform.position = GetHolderSnapWorldPosition(anchor);
         previousHolderAnchor = anchor;
         previousHolderWorldPosition = transform.position;
         State = PieceState.PlacedOnHolder;
         ApplyHolderPlacementShadowVisibility(anchor);
-        SetSortingOrder(35);
+        SetSortingOrder(GetPlacedHolderSortingOrder());
+        ApplyPlacedHolderCellSorting(anchor);
+    }
+
+    public Vector3 GetCellColliderWorldPosition(Vector3 rootWorldPosition, Vector2Int cellOffset)
+    {
+        return rootWorldPosition
+            + new Vector3(cellOffset.x * cellSize, cellOffset.y * cellSize, 0f)
+            + GetSingleBlockColliderWorldOffset();
     }
 
     private void BuildVisuals()
     {
         screwRenderers.Clear();
+        HashSet<Vector2Int> occupiedOffsets = GetOccupiedOffsets();
 
         for (int i = transform.childCount - 1; i >= 0; i--)
         {
@@ -176,13 +196,278 @@ public class Block : MonoBehaviour
                 cell = cellObject.AddComponent<Cell>();
             }
 
-            cell.Setup(cellData.offset, cellData.color, holderBoard.GetColor(cellData.color), 20);
-            ApplyBlockShadowColor(cellObject, holderBoard.GetColor(cellData.color));
+            cell.Setup(cellData.offset, cellData.color, holderBoard.GetVisualColor(cellData.color), 20);
+            ApplyBlockShadowColor(cellObject, holderBoard.GetShadowColor(cellData.color));
+            ApplyVisualJoinOverlap(cellObject, cellData, occupiedOffsets);
+            ConfigureStrokes(cellObject, cellData, occupiedOffsets, 20);
             ConfigureScrew(cellObject, hasFixedScrews, 20);
         }
 
-        BuildShapeSprite();
         RemoveRootCollider();
+    }
+
+    private HashSet<Vector2Int> GetOccupiedOffsets()
+    {
+        HashSet<Vector2Int> occupiedOffsets = new HashSet<Vector2Int>();
+        foreach (ColoredCellData cell in cells)
+        {
+            occupiedOffsets.Add(cell.offset);
+        }
+
+        return occupiedOffsets;
+    }
+
+    private void ConfigureStrokes(GameObject cellObject, ColoredCellData cellData, HashSet<Vector2Int> occupiedOffsets, int sortingOrder)
+    {
+        SpriteRenderer[] strokeRenderers = GetStrokeRenderers(cellObject);
+        if (strokeRenderers.Length == 0)
+        {
+            return;
+        }
+
+        Color strokeColor = holderBoard.GetStrokeColor(cellData.color);
+        bool hasLeftConnection = occupiedOffsets.Contains(cellData.offset + Vector2Int.left);
+        bool hasRightConnection = occupiedOffsets.Contains(cellData.offset + Vector2Int.right);
+        bool hasUpConnection = occupiedOffsets.Contains(cellData.offset + Vector2Int.up);
+        bool hasDownConnection = occupiedOffsets.Contains(cellData.offset + Vector2Int.down);
+
+        foreach (SpriteRenderer strokeRenderer in strokeRenderers)
+        {
+            if (strokeRenderer == null)
+            {
+                continue;
+            }
+
+            StrokeDirection direction = ResolveStrokeDirection(strokeRenderer);
+            ApplyStrokeInset(strokeRenderer, direction);
+            strokeRenderer.color = strokeColor;
+            strokeRenderer.enabled = strokeVisible && ShouldShowStroke(direction, hasLeftConnection, hasRightConnection, hasUpConnection, hasDownConnection);
+            strokeRenderer.sortingOrder = GetRendererSortingOrder(strokeRenderer, sortingOrder);
+        }
+    }
+
+    private SpriteRenderer[] GetStrokeRenderers(GameObject cellObject)
+    {
+        List<SpriteRenderer> strokeRenderers = new List<SpriteRenderer>();
+        SpriteRenderer[] renderers = cellObject.GetComponentsInChildren<SpriteRenderer>(true);
+
+        foreach (SpriteRenderer spriteRenderer in renderers)
+        {
+            if (spriteRenderer != null && IsStrokeRenderer(spriteRenderer))
+            {
+                strokeRenderers.Add(spriteRenderer);
+            }
+        }
+
+        return strokeRenderers.ToArray();
+    }
+
+    private bool IsStrokeRenderer(SpriteRenderer spriteRenderer)
+    {
+        return spriteRenderer.name.ToLowerInvariant().Contains(StrokeObjectName.ToLowerInvariant());
+    }
+
+    private StrokeDirection ResolveStrokeDirection(SpriteRenderer spriteRenderer)
+    {
+        string rendererName = spriteRenderer.name.ToLowerInvariant();
+        string objectName = spriteRenderer.gameObject.name.ToLowerInvariant();
+        string spriteName = spriteRenderer.sprite == null ? string.Empty : spriteRenderer.sprite.name.ToLowerInvariant();
+        string lookupName = $"{rendererName} {objectName} {spriteName}";
+
+        if (lookupName.Contains("left") || IsSpriteName(spriteName, "4"))
+        {
+            return StrokeDirection.Left;
+        }
+
+        if (lookupName.Contains("right") || IsSpriteName(spriteName, "3"))
+        {
+            return StrokeDirection.Right;
+        }
+
+        if (lookupName.Contains("top") || lookupName.Contains("up") || IsSpriteName(spriteName, "2"))
+        {
+            return StrokeDirection.Up;
+        }
+
+        if (lookupName.Contains("bottom") || lookupName.Contains("down") || IsSpriteName(spriteName, "5"))
+        {
+            return StrokeDirection.Down;
+        }
+
+        return StrokeDirection.Unknown;
+    }
+
+    private bool IsSpriteName(string spriteName, string expectedName)
+    {
+        return spriteName == expectedName || spriteName.StartsWith($"{expectedName}_");
+    }
+
+    private bool ShouldShowStroke(
+        StrokeDirection direction,
+        bool hasLeftConnection,
+        bool hasRightConnection,
+        bool hasUpConnection,
+        bool hasDownConnection)
+    {
+        switch (direction)
+        {
+            case StrokeDirection.Left:
+                return !hasLeftConnection;
+            case StrokeDirection.Right:
+                return !hasRightConnection;
+            case StrokeDirection.Up:
+                return !hasUpConnection;
+            case StrokeDirection.Down:
+                return !hasDownConnection;
+            default:
+                return true;
+        }
+    }
+
+    private void ApplyVisualJoinOverlap(GameObject cellObject, ColoredCellData cellData, HashSet<Vector2Int> occupiedOffsets)
+    {
+        Transform visualTransform = cellObject.transform.Find(VisualObjectName);
+        SpriteRenderer visualRenderer = visualTransform == null ? null : visualTransform.GetComponent<SpriteRenderer>();
+        if (visualRenderer == null || visualRenderer.sprite == null)
+        {
+            return;
+        }
+
+        Vector3 baseLocalPosition = GetPrefabChildLocalPosition(VisualObjectName, visualTransform.localPosition);
+        Vector3 baseLocalScale = GetPrefabChildLocalScale(VisualObjectName, visualTransform.localScale);
+        float overlapUnits = GetSpritePixelUnits(visualRenderer, VisualJoinOverlapPixels);
+
+        float leftOverlap = occupiedOffsets.Contains(cellData.offset + Vector2Int.left) ? overlapUnits : 0f;
+        float rightOverlap = occupiedOffsets.Contains(cellData.offset + Vector2Int.right) ? overlapUnits : 0f;
+        float upOverlap = occupiedOffsets.Contains(cellData.offset + Vector2Int.up) ? overlapUnits : 0f;
+        float downOverlap = occupiedOffsets.Contains(cellData.offset + Vector2Int.down) ? overlapUnits : 0f;
+
+        float baseWidth = visualRenderer.sprite.bounds.size.x * Mathf.Abs(baseLocalScale.x);
+        float baseHeight = visualRenderer.sprite.bounds.size.y * Mathf.Abs(baseLocalScale.y);
+        float scaleXMultiplier = Mathf.Approximately(baseWidth, 0f) ? 1f : (baseWidth + leftOverlap + rightOverlap) / baseWidth;
+        float scaleYMultiplier = Mathf.Approximately(baseHeight, 0f) ? 1f : (baseHeight + upOverlap + downOverlap) / baseHeight;
+
+        visualTransform.localPosition = baseLocalPosition + new Vector3(
+            (rightOverlap - leftOverlap) * 0.5f,
+            (upOverlap - downOverlap) * 0.5f,
+            0f
+        );
+        visualTransform.localScale = new Vector3(
+            baseLocalScale.x * scaleXMultiplier,
+            baseLocalScale.y * scaleYMultiplier,
+            baseLocalScale.z
+        );
+    }
+
+    private void ApplyStrokeInset(SpriteRenderer strokeRenderer, StrokeDirection direction)
+    {
+        if (strokeRenderer == null)
+        {
+            return;
+        }
+
+        Vector3 baseLocalPosition = GetPrefabStrokeLocalPosition(direction, strokeRenderer.transform.localPosition);
+        float insetUnits = GetSpritePixelUnits(strokeRenderer, StrokeInsetPixels);
+
+        switch (direction)
+        {
+            case StrokeDirection.Left:
+                strokeRenderer.transform.localPosition = baseLocalPosition + Vector3.right * insetUnits;
+                break;
+            case StrokeDirection.Right:
+                strokeRenderer.transform.localPosition = baseLocalPosition + Vector3.left * insetUnits;
+                break;
+            case StrokeDirection.Up:
+                strokeRenderer.transform.localPosition = baseLocalPosition + Vector3.down * insetUnits;
+                break;
+            case StrokeDirection.Down:
+                strokeRenderer.transform.localPosition = baseLocalPosition + Vector3.up * insetUnits;
+                break;
+            default:
+                strokeRenderer.transform.localPosition = baseLocalPosition;
+                break;
+        }
+    }
+
+    private Vector3 GetPrefabStrokeLocalPosition(StrokeDirection direction, Vector3 fallbackLocalPosition)
+    {
+        if (singleBlockPrefab == null)
+        {
+            return fallbackLocalPosition;
+        }
+
+        foreach (SpriteRenderer prefabStrokeRenderer in GetStrokeRenderers(singleBlockPrefab))
+        {
+            if (prefabStrokeRenderer != null && ResolveStrokeDirection(prefabStrokeRenderer) == direction)
+            {
+                return prefabStrokeRenderer.transform.localPosition;
+            }
+        }
+
+        return fallbackLocalPosition;
+    }
+
+    private Vector3 GetPrefabChildLocalPosition(string childName, Vector3 fallbackLocalPosition)
+    {
+        if (singleBlockPrefab == null)
+        {
+            return fallbackLocalPosition;
+        }
+
+        Transform childTransform = singleBlockPrefab.transform.Find(childName);
+        return childTransform == null ? fallbackLocalPosition : childTransform.localPosition;
+    }
+
+    private Vector3 GetPrefabChildLocalScale(string childName, Vector3 fallbackLocalScale)
+    {
+        if (singleBlockPrefab == null)
+        {
+            return fallbackLocalScale;
+        }
+
+        Transform childTransform = singleBlockPrefab.transform.Find(childName);
+        return childTransform == null ? fallbackLocalScale : childTransform.localScale;
+    }
+
+    private float GetSpritePixelUnits(SpriteRenderer spriteRenderer, float pixels)
+    {
+        if (spriteRenderer.sprite == null || Mathf.Approximately(spriteRenderer.sprite.pixelsPerUnit, 0f))
+        {
+            return 0f;
+        }
+
+        return Mathf.Max(0f, pixels) / spriteRenderer.sprite.pixelsPerUnit;
+    }
+
+    private Vector3 GetHolderSnapWorldPosition(Vector2Int anchor)
+    {
+        if (holderBoard == null)
+        {
+            return transform.position;
+        }
+
+        return holderBoard.GridToWorld(anchor) + holderBoard.CellColliderWorldOffset - GetSingleBlockColliderWorldOffset();
+    }
+
+    private Vector3 GetSingleBlockColliderWorldOffset()
+    {
+        if (singleBlockPrefab == null)
+        {
+            return Vector3.zero;
+        }
+
+        BoxCollider2D boxCollider = singleBlockPrefab.GetComponent<BoxCollider2D>();
+        if (boxCollider == null)
+        {
+            return Vector3.zero;
+        }
+
+        Vector3 prefabScale = singleBlockPrefab.transform.localScale;
+        return new Vector3(
+            boxCollider.offset.x * prefabScale.x,
+            boxCollider.offset.y * prefabScale.y,
+            0f
+        );
     }
 
     private void ConfigureScrew(GameObject cellObject, bool visible, int sortingOrder)
@@ -212,72 +497,6 @@ public class Block : MonoBehaviour
         screwTransform.gameObject.SetActive(visible);
     }
 
-    private void BuildShapeSprite()
-    {
-        DestroyGeneratedShapeSprite();
-
-        if (cells.Count == 0)
-        {
-            return;
-        }
-
-        Vector2Int min = cells[0].offset;
-        Vector2Int max = cells[0].offset;
-
-        foreach (ColoredCellData cell in cells)
-        {
-            min.x = Mathf.Min(min.x, cell.offset.x);
-            min.y = Mathf.Min(min.y, cell.offset.y);
-            max.x = Mathf.Max(max.x, cell.offset.x);
-            max.y = Mathf.Max(max.y, cell.offset.y);
-        }
-
-        int widthCells = max.x - min.x + 1;
-        int heightCells = max.y - min.y + 1;
-        int textureWidth = widthCells * ShapeSpritePixelsPerCell + ShapeSpritePaddingPixels * 2;
-        int textureHeight = heightCells * ShapeSpritePixelsPerCell + ShapeSpritePaddingPixels * 2;
-
-        shapeTexture = new Texture2D(textureWidth, textureHeight, TextureFormat.RGBA32, false);
-        shapeTexture.filterMode = FilterMode.Point;
-        shapeTexture.wrapMode = TextureWrapMode.Clamp;
-
-        Color[] clearPixels = new Color[textureWidth * textureHeight];
-        for (int i = 0; i < clearPixels.Length; i++)
-        {
-            clearPixels[i] = Color.clear;
-        }
-
-        shapeTexture.SetPixels(clearPixels);
-
-        foreach (ColoredCellData cell in cells)
-        {
-            Color cellColor = Darken(holderBoard.GetColor(cell.color), ShapeSpriteDarkenAmount);
-            int startX = (cell.offset.x - min.x) * ShapeSpritePixelsPerCell;
-            int startY = (cell.offset.y - min.y) * ShapeSpritePixelsPerCell;
-            int fillSize = ShapeSpritePixelsPerCell + ShapeSpritePaddingPixels * 2;
-
-            FillShapeTextureRect(startX, startY, fillSize, fillSize, cellColor, textureWidth, textureHeight);
-        }
-
-        shapeTexture.Apply();
-
-        Vector2 pivot = new Vector2(
-            (ShapeSpritePaddingPixels + (-min.x + 0.5f) * ShapeSpritePixelsPerCell) / textureWidth,
-            (ShapeSpritePaddingPixels + (-min.y + 0.5f) * ShapeSpritePixelsPerCell) / textureHeight
-        );
-        float pixelsPerUnit = ShapeSpritePixelsPerCell / cellSize;
-        shapeSprite = Sprite.Create(shapeTexture, new Rect(0f, 0f, textureWidth, textureHeight), pivot, pixelsPerUnit);
-        shapeSprite.name = $"{name}_ShapeSprite";
-
-        GameObject shapeObject = new GameObject("ShapeSprite");
-        shapeObject.transform.SetParent(transform, false);
-        shapeSpriteRenderer = shapeObject.AddComponent<SpriteRenderer>();
-        shapeSpriteRenderer.sprite = shapeSprite;
-        shapeSpriteRenderer.color = Color.white;
-        shapeSpriteRenderer.enabled = shapeSpriteVisible;
-        shapeSpriteRenderer.sortingOrder = 21;
-    }
-
     private void ApplyBlockShadowColor(GameObject cellObject, Color color)
     {
         Transform shadowTransform = cellObject.transform.Find("Shadow");
@@ -285,7 +504,7 @@ public class Block : MonoBehaviour
 
         if (shadowRenderer != null)
         {
-            shadowRenderer.color = Darken(color, ShadowDarkenAmount);
+            shadowRenderer.color = color;
         }
     }
 
@@ -323,13 +542,30 @@ public class Block : MonoBehaviour
         }
     }
 
-    public void SetShapeSpriteVisible(bool visible)
+    public void SetStrokeVisible(bool visible)
     {
-        shapeSpriteVisible = visible;
+        strokeVisible = visible;
 
-        if (shapeSpriteRenderer != null)
+        HashSet<Vector2Int> occupiedOffsets = GetOccupiedOffsets();
+        Cell[] childCells = GetComponentsInChildren<Cell>(true);
+        foreach (Cell cell in childCells)
         {
-            shapeSpriteRenderer.enabled = visible;
+            if (cell == null)
+            {
+                continue;
+            }
+
+            ColoredCellData cellData = new ColoredCellData
+            {
+                offset = cell.GridPosition,
+                color = cell.ColorId
+            };
+            ConfigureStrokes(cell.gameObject, cellData, occupiedOffsets, GetBaseSortingOrderForState());
+        }
+
+        if (State == PieceState.PlacedOnHolder)
+        {
+            ApplyPlacedHolderCellSorting(HolderAnchor);
         }
     }
 
@@ -355,7 +591,7 @@ public class Block : MonoBehaviour
         {
             if (cell.ColorId == colorId)
             {
-                StartCoroutine(BounceCell(cell.transform, 0f, CompletedColorBounceDuration, CompletedColorBounceHeightCells));
+                PlayCellBounce(cell, 0f, CompletedColorBounceDuration, cellSize * CompletedColorBounceHeightCells);
             }
         }
     }
@@ -389,6 +625,7 @@ public class Block : MonoBehaviour
                 continue;
             }
 
+            SetCellStrokesVisible(cell.gameObject, false, GetBaseSortingOrderForState());
             cell.transform.SetParent(detachedParent, true);
             detachedAnyCell = true;
 
@@ -400,43 +637,43 @@ public class Block : MonoBehaviour
 
         if (detachedAnyCell)
         {
-            SetShapeSpriteVisible(false);
+            RefreshStrokeVisibility();
         }
     }
 
-    private IEnumerator BounceCell(Transform cellTransform, float delaySeconds, float duration, float heightInCells)
+    private void SetCellStrokesVisible(GameObject cellObject, bool visible, int sortingOrder)
     {
-        if (cellTransform == null)
+        foreach (SpriteRenderer strokeRenderer in GetStrokeRenderers(cellObject))
         {
-            yield break;
-        }
-
-        if (delaySeconds > 0f)
-        {
-            yield return new WaitForSeconds(delaySeconds);
-        }
-
-        Vector3 startPosition = cellTransform.localPosition;
-        float elapsed = 0f;
-
-        while (elapsed < duration)
-        {
-            if (cellTransform == null)
+            if (strokeRenderer == null)
             {
-                yield break;
+                continue;
             }
 
-            elapsed += Time.deltaTime;
-            float progress = Mathf.Clamp01(elapsed / duration);
-            float height = Mathf.Sin(progress * Mathf.PI) * cellSize * heightInCells;
-            cellTransform.localPosition = startPosition + Vector3.up * height;
-            yield return null;
+            strokeRenderer.enabled = visible;
+            strokeRenderer.sortingOrder = GetRendererSortingOrder(strokeRenderer, sortingOrder);
+        }
+    }
+
+    private void RefreshStrokeVisibility()
+    {
+        SetStrokeVisible(strokeVisible);
+    }
+
+    private void PlayCellBounce(Cell cell, float delaySeconds, float duration, float height)
+    {
+        if (cell == null)
+        {
+            return;
         }
 
-        if (cellTransform != null)
+        CellBounceAnimator bounceAnimator = cell.GetComponent<CellBounceAnimator>();
+        if (bounceAnimator == null)
         {
-            cellTransform.localPosition = startPosition;
+            bounceAnimator = cell.gameObject.AddComponent<CellBounceAnimator>();
         }
+
+        bounceAnimator.Play(delaySeconds, duration, height, holderBoard.RaisedCellSortingOrder);
     }
 
     private IEnumerator PlayTraySpawnJellyRoutine(float delaySeconds, Vector3 targetScale, Vector3 targetPosition)
@@ -621,46 +858,6 @@ public class Block : MonoBehaviour
         }
     }
 
-    private void FillShapeTextureRect(int startX, int startY, int width, int height, Color color, int textureWidth, int textureHeight)
-    {
-        int endX = Mathf.Min(startX + width, textureWidth);
-        int endY = Mathf.Min(startY + height, textureHeight);
-
-        for (int y = Mathf.Max(startY, 0); y < endY; y++)
-        {
-            for (int x = Mathf.Max(startX, 0); x < endX; x++)
-            {
-                shapeTexture.SetPixel(x, y, color);
-            }
-        }
-    }
-
-    private void DestroyGeneratedShapeSprite()
-    {
-        if (shapeSpriteRenderer != null)
-        {
-            Destroy(shapeSpriteRenderer.gameObject);
-            shapeSpriteRenderer = null;
-        }
-
-        if (shapeSprite != null)
-        {
-            Destroy(shapeSprite);
-            shapeSprite = null;
-        }
-
-        if (shapeTexture != null)
-        {
-            Destroy(shapeTexture);
-            shapeTexture = null;
-        }
-    }
-
-    private void OnDestroy()
-    {
-        DestroyGeneratedShapeSprite();
-    }
-
     private void RemoveRootCollider()
     {
         BoxCollider2D boxCollider = GetComponent<BoxCollider2D>();
@@ -715,7 +912,7 @@ public class Block : MonoBehaviour
 
         dragOffset = transform.position - GetPointerWorldPosition();
         SetBlockShadowVisible(true);
-        SetShapeSpriteVisible(true);
+        SetStrokeVisible(true);
         SetSortingOrder(100);
         UpdateHolderPreview();
     }
@@ -772,15 +969,16 @@ public class Block : MonoBehaviour
             transform.position = previousHolderWorldPosition;
             State = PieceState.PlacedOnHolder;
             ApplyHolderPlacementShadowVisibility(previousHolderAnchor);
-            SetSortingOrder(35);
-            levelManager.RefreshCompletedBlockShapeSprites();
+            SetSortingOrder(GetPlacedHolderSortingOrder());
+            ApplyPlacedHolderCellSorting(previousHolderAnchor);
+            levelManager.RefreshCompletedBlockStrokes();
             return;
         }
 
         transform.position = trayWorldPosition;
         State = PieceState.InTray;
         SetBlockShadowVisible(true);
-        SetSortingOrder(20);
+        SetSortingOrder(traySortingOrder);
     }
 
     private void UpdateHolderPreview()
@@ -882,16 +1080,96 @@ public class Block : MonoBehaviour
         }
     }
 
+    private void ApplyPlacedHolderCellSorting(Vector2Int anchor)
+    {
+        if (holderBoard == null)
+        {
+            return;
+        }
+
+        Cell[] childCells = GetComponentsInChildren<Cell>(true);
+        foreach (Cell cell in childCells)
+        {
+            if (cell == null)
+            {
+                continue;
+            }
+
+            Vector2Int holderPosition = anchor + cell.GridPosition;
+            SpriteRenderer[] renderers = cell.GetComponentsInChildren<SpriteRenderer>(true);
+            foreach (SpriteRenderer spriteRenderer in renderers)
+            {
+                if (spriteRenderer == null)
+                {
+                    continue;
+                }
+
+                spriteRenderer.sortingOrder = GetPlacedHolderRendererSortingOrder(spriteRenderer, holderPosition);
+            }
+        }
+    }
+
+    private int GetPlacedHolderRendererSortingOrder(SpriteRenderer spriteRenderer, Vector2Int holderPosition)
+    {
+        if (spriteRenderer.name == "Shadow")
+        {
+            return holderBoard.GetPlacedCellShadowSortingOrder(holderPosition);
+        }
+
+        if (spriteRenderer.name == VisualObjectName)
+        {
+            return holderBoard.GetPlacedCellVisualSortingOrder(holderPosition);
+        }
+
+        if (IsStrokeRenderer(spriteRenderer))
+        {
+            return holderBoard.GetPlacedCellStrokeSortingOrder(holderPosition);
+        }
+
+        if (spriteRenderer.name == ScrewObjectName)
+        {
+            return holderBoard.GetPlacedCellScrewSortingOrder(holderPosition);
+        }
+
+        return holderBoard.GetPlacedCellVisualSortingOrder(holderPosition);
+    }
+
+    private int GetBaseSortingOrderForState()
+    {
+        switch (State)
+        {
+            case PieceState.InTray:
+            case PieceState.DraggingFromTray:
+                return traySortingOrder;
+            case PieceState.DraggingFromHolder:
+                return 100;
+            case PieceState.PlacedOnHolder:
+                return GetPlacedHolderSortingOrder();
+            default:
+                return 20;
+        }
+    }
+
+    private int GetPlacedHolderSortingOrder()
+    {
+        return holderBoard == null ? 35 : holderBoard.PlacedBlockSortingOrder;
+    }
+
     private int GetRendererSortingOrder(SpriteRenderer spriteRenderer, int baseSortingOrder)
     {
         if (spriteRenderer.name == "Shadow")
         {
-            return baseSortingOrder;
+            if (State == PieceState.PlacedOnHolder && holderBoard != null)
+            {
+                return holderBoard.PlacedBlockShadowSortingOrder;
+            }
+
+            return baseSortingOrder + ShadowSortingOrderOffset;
         }
 
-        if (spriteRenderer.name == "ShapeSprite")
+        if (IsStrokeRenderer(spriteRenderer))
         {
-            return baseSortingOrder + 1;
+            return baseSortingOrder + 3;
         }
 
         if (spriteRenderer.name == "Visual")
@@ -901,17 +1179,10 @@ public class Block : MonoBehaviour
 
         if (spriteRenderer.name == ScrewObjectName)
         {
-            return baseSortingOrder + 3;
+            return baseSortingOrder + 4;
         }
 
         return baseSortingOrder;
-    }
-
-    private Color Darken(Color color, float amount)
-    {
-        Color darkerColor = Color.Lerp(color, Color.black, amount);
-        darkerColor.a = color.a;
-        return darkerColor;
     }
 
 }

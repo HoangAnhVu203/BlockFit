@@ -1171,7 +1171,7 @@ public class BlockFitLevelDesignerWindow : EditorWindow
             BlockColorId.Yellow,
             BlockColorId.Green,
             BlockColorId.Blue,
-            BlockColorId.Purple,
+            BlockColorId.Pink,
             BlockColorId.Brown,
             BlockColorId.Gray
         };
@@ -1193,7 +1193,7 @@ public class BlockFitLevelDesignerWindow : EditorWindow
                 return "G";
             case BlockColorId.Blue:
                 return "B";
-            case BlockColorId.Purple:
+            case BlockColorId.Pink:
                 return "P";
             case BlockColorId.Brown:
                 return "Br";
@@ -1206,6 +1206,11 @@ public class BlockFitLevelDesignerWindow : EditorWindow
 
     private Color ColorFor(BlockColorId colorId)
     {
+        if (levelManager != null && levelManager.HolderBoard != null)
+        {
+            return levelManager.HolderBoard.GetVisualColor(colorId);
+        }
+
         switch (colorId)
         {
             case BlockColorId.Red:
@@ -1218,8 +1223,8 @@ public class BlockFitLevelDesignerWindow : EditorWindow
                 return new Color(0.02f, 0.72f, 0.22f);
             case BlockColorId.Blue:
                 return new Color(0.02f, 0.36f, 0.95f);
-            case BlockColorId.Purple:
-                return new Color(0.52f, 0.26f, 0.86f);
+            case BlockColorId.Pink:
+                return new Color(1f, 0.26f, 0.58f);
             case BlockColorId.Brown:
                 return new Color(0.48f, 0.22f, 0.02f);
             case BlockColorId.Gray:

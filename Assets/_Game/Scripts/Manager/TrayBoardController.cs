@@ -12,7 +12,7 @@ public class TrayBoardController : BoardController
             for (int x = 0; x < BoardSize.x; x++)
             {
                 Vector2Int position = new Vector2Int(x, y);
-                Cell cell = CreateCell(position, BlockColorId.Gray, GetColor(BlockColorId.Gray));
+                Cell cell = CreateCell(position, BlockColorId.Gray, GetVisualColor(BlockColorId.Gray));
                 cell.ClearWalls();
             }
         }

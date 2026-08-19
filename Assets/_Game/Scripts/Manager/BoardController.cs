@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 public abstract class BoardController : MonoBehaviour
 {
@@ -7,7 +8,9 @@ public abstract class BoardController : MonoBehaviour
     public class BlockColorMapping
     {
         public BlockColorId id;
-        public Color color = Color.white;
+        [FormerlySerializedAs("color")] public Color visualColor = Color.white;
+        public Color shadowColor = Color.black;
+        [FormerlySerializedAs("shapeSpriteColor")] public Color strokeColor = Color.white;
     }
 
     [Header("Board")]
@@ -27,14 +30,14 @@ public abstract class BoardController : MonoBehaviour
     [Header("Palette")]
     [SerializeField] private List<BlockColorMapping> palette = new List<BlockColorMapping>
     {
-        new BlockColorMapping { id = BlockColorId.Red, color = new Color(0.86f, 0.16f, 0.05f) },
-        new BlockColorMapping { id = BlockColorId.Orange, color = new Color(1f, 0.48f, 0.02f) },
-        new BlockColorMapping { id = BlockColorId.Yellow, color = new Color(1f, 0.82f, 0.05f) },
-        new BlockColorMapping { id = BlockColorId.Green, color = new Color(0.02f, 0.72f, 0.22f) },
-        new BlockColorMapping { id = BlockColorId.Blue, color = new Color(0.02f, 0.36f, 0.95f) },
-        new BlockColorMapping { id = BlockColorId.Purple, color = new Color(0.52f, 0.26f, 0.86f) },
-        new BlockColorMapping { id = BlockColorId.Brown, color = new Color(0.48f, 0.22f, 0.02f) },
-        new BlockColorMapping { id = BlockColorId.Gray, color = new Color(0.42f, 0.45f, 0.50f) }
+        new BlockColorMapping { id = BlockColorId.Red, visualColor = new Color(0.86f, 0.16f, 0.05f), shadowColor = new Color(0.45f, 0.05f, 0.02f), strokeColor = new Color(0.70f, 0.10f, 0.03f) },
+        new BlockColorMapping { id = BlockColorId.Orange, visualColor = new Color(1f, 0.48f, 0.02f), shadowColor = new Color(0.55f, 0.22f, 0.01f), strokeColor = new Color(0.82f, 0.34f, 0.01f) },
+        new BlockColorMapping { id = BlockColorId.Yellow, visualColor = new Color(1f, 0.82f, 0.05f), shadowColor = new Color(0.58f, 0.42f, 0.02f), strokeColor = new Color(0.82f, 0.62f, 0.02f) },
+        new BlockColorMapping { id = BlockColorId.Green, visualColor = new Color(0.02f, 0.72f, 0.22f), shadowColor = new Color(0.00f, 0.34f, 0.10f), strokeColor = new Color(0.01f, 0.55f, 0.16f) },
+        new BlockColorMapping { id = BlockColorId.Blue, visualColor = new Color(0.02f, 0.36f, 0.95f), shadowColor = new Color(0.01f, 0.12f, 0.45f), strokeColor = new Color(0.01f, 0.25f, 0.75f) },
+        new BlockColorMapping { id = BlockColorId.Pink, visualColor = new Color(1f, 0.26f, 0.58f), shadowColor = new Color(0.54f, 0.08f, 0.26f), strokeColor = new Color(0.82f, 0.16f, 0.44f) },
+        new BlockColorMapping { id = BlockColorId.Brown, visualColor = new Color(0.48f, 0.22f, 0.02f), shadowColor = new Color(0.24f, 0.10f, 0.01f), strokeColor = new Color(0.36f, 0.15f, 0.01f) },
+        new BlockColorMapping { id = BlockColorId.Gray, visualColor = new Color(0.42f, 0.45f, 0.50f), shadowColor = new Color(0.22f, 0.24f, 0.28f), strokeColor = new Color(0.33f, 0.36f, 0.40f) }
     };
 
     private Vector2Int boardSize;
@@ -43,6 +46,7 @@ public abstract class BoardController : MonoBehaviour
 
     public float CellSize => runtimeCellSize > 0f ? runtimeCellSize : cellSize;
     public Vector2Int BoardSize => boardSize;
+    public Vector3 CellColliderWorldOffset => GetPrefabColliderWorldOffset(cellPrefab);
 
     public void SetBaseCellSize(float newCellSize)
     {
@@ -103,15 +107,50 @@ public abstract class BoardController : MonoBehaviour
 
     public Color GetColor(BlockColorId colorId)
     {
+        return GetVisualColor(colorId);
+    }
+
+    public Color GetVisualColor(BlockColorId colorId)
+    {
+        return GetPaletteColor(colorId, PaletteColorRole.Visual);
+    }
+
+    public Color GetShadowColor(BlockColorId colorId)
+    {
+        return GetPaletteColor(colorId, PaletteColorRole.Shadow);
+    }
+
+    public Color GetStrokeColor(BlockColorId colorId)
+    {
+        return GetPaletteColor(colorId, PaletteColorRole.Stroke);
+    }
+
+    private Color GetPaletteColor(BlockColorId colorId, PaletteColorRole role)
+    {
         foreach (BlockColorMapping mapping in palette)
         {
             if (mapping.id == colorId)
             {
-                return mapping.color;
+                switch (role)
+                {
+                    case PaletteColorRole.Shadow:
+                        return mapping.shadowColor;
+                    case PaletteColorRole.Stroke:
+                        return mapping.strokeColor;
+                    default:
+                        return mapping.visualColor;
+                }
             }
         }
 
         return Color.white;
+    }
+
+    private enum PaletteColorRole
+    {
+        Visual,
+        Shadow,
+        Stroke
     }
 
     public bool InBounds(Vector2Int position)
@@ -163,6 +202,27 @@ public abstract class BoardController : MonoBehaviour
     private float InverseScale(float scale)
     {
         return Mathf.Approximately(scale, 0f) ? 1f : 1f / scale;
+    }
+
+    private Vector3 GetPrefabColliderWorldOffset(GameObject prefab)
+    {
+        if (prefab == null)
+        {
+            return Vector3.zero;
+        }
+
+        BoxCollider2D boxCollider = prefab.GetComponent<BoxCollider2D>();
+        if (boxCollider == null)
+        {
+            return Vector3.zero;
+        }
+
+        Vector3 prefabScale = prefab.transform.localScale;
+        return new Vector3(
+            boxCollider.offset.x * prefabScale.x,
+            boxCollider.offset.y * prefabScale.y,
+            0f
+        );
     }
 
     private void RecalculateGridLayout()

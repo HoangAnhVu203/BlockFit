@@ -6,7 +6,7 @@ public enum BlockColorId
     Yellow,
     Green,
     Blue,
-    Purple,
+    Pink,
     Brown,
     Gray
 }

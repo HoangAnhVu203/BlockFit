@@ -286,21 +286,37 @@ MonoBehaviour:
   minCellSize: 0.1
   palette:
   - id: 1
-    color: {r: 0.86, g: 0.16, b: 0.05, a: 1}
+    visualColor: {r: 0.8784314, g: 0.14117648, b: 0.14117648, a: 1}
+    shadowColor: {r: 0.6666667, g: 0.09411765, b: 0.09411765, a: 1}
+    strokeColor: {r: 1, g: 0.27450982, b: 0.25882354, a: 1}
   - id: 2
-    color: {r: 1, g: 0.48, b: 0.02, a: 1}
+    visualColor: {r: 0.98039216, g: 0.5058824, b: 0, a: 1}
+    shadowColor: {r: 0.74509805, g: 0.4, b: 0.02745098, a: 1}
+    strokeColor: {r: 1, g: 0.6862745, b: 0.34901962, a: 1}
   - id: 3
-    color: {r: 1, g: 0.82, b: 0.05, a: 1}
+    visualColor: {r: 0.99607843, g: 0.9372549, b: 0.003921569, a: 1}
+    shadowColor: {r: 1, g: 0.7607843, b: 0, a: 1}
+    strokeColor: {r: 1, g: 0.99607843, b: 0.22352941, a: 1}
   - id: 4
-    color: {r: 0.02, g: 0.72, b: 0.22, a: 1}
+    visualColor: {r: 0.15294118, g: 0.8745098, b: 0.05490196, a: 1}
+    shadowColor: {r: 0, g: 0.6392157, b: 0.18039216, a: 1}
+    strokeColor: {r: 0.38039216, g: 1, b: 0.29411766, a: 1}
   - id: 5
-    color: {r: 0.02, g: 0.36, b: 0.95, a: 1}
+    visualColor: {r: 0.047058824, g: 0.48235294, b: 0.99607843, a: 1}
+    shadowColor: {r: 0.003921569, g: 0.25490198, b: 0.69803923, a: 1}
+    strokeColor: {r: 0.3647059, g: 0.654902, b: 1, a: 1}
   - id: 6
-    color: {r: 0.52, g: 0.26, b: 0.86, a: 1}
+    visualColor: {r: 0.9647059, g: 0.11764706, b: 0.7137255, a: 1}
+    shadowColor: {r: 0.7254902, g: 0.03529412, b: 0.52156866, a: 1}
+    strokeColor: {r: 0.99607843, g: 0.3820755, b: 0.85882354, a: 1}
   - id: 7
-    color: {r: 0.48, g: 0.22, b: 0.02, a: 1}
+    visualColor: {r: 0.60784316, g: 0.31764707, b: 0.07058824, a: 1}
+    shadowColor: {r: 0.42745098, g: 0.21568628, b: 0.03529412, a: 1}
+    strokeColor: {r: 0.7411765, g: 0.40784314, b: 0.12156863, a: 1}
   - id: 8
-    color: {r: 0.42, g: 0.45, b: 0.5, a: 1}
+    visualColor: {r: 0.42, g: 0.45, b: 0.5, a: 1}
+    shadowColor: {r: 0.22, g: 0.24, b: 0.28, a: 1}
+    strokeColor: {r: 0.33, g: 0.36, b: 0.4, a: 1}
 --- !u!4 &812221889
 Transform:
   m_ObjectHideFlags: 0
@@ -418,21 +434,37 @@ MonoBehaviour:
   minCellSize: 0.1
   palette:
   - id: 1
-    color: {r: 0.86, g: 0.16, b: 0.05, a: 1}
+    visualColor: {r: 0.8784314, g: 0.14117648, b: 0.14117648, a: 1}
+    shadowColor: {r: 0.6666667, g: 0.09411765, b: 0.09411765, a: 1}
+    strokeColor: {r: 1, g: 0.27450982, b: 0.25882354, a: 1}
   - id: 2
-    color: {r: 1, g: 0.48, b: 0.02, a: 1}
+    visualColor: {r: 0.98039216, g: 0.5058824, b: 0, a: 1}
+    shadowColor: {r: 0.74509805, g: 0.4, b: 0.02745098, a: 1}
+    strokeColor: {r: 1, g: 0.6862745, b: 0.34901962, a: 1}
   - id: 3
-    color: {r: 1, g: 0.82, b: 0.05, a: 1}
+    visualColor: {r: 0.99607843, g: 0.9372549, b: 0.003921569, a: 1}
+    shadowColor: {r: 1, g: 0.7607843, b: 0, a: 1}
+    strokeColor: {r: 1, g: 0.99607843, b: 0.22352941, a: 1}
   - id: 4
-    color: {r: 0.02, g: 0.72, b: 0.22, a: 1}
+    visualColor: {r: 0.15294118, g: 0.8745098, b: 0.05490196, a: 1}
+    shadowColor: {r: 0, g: 0.6392157, b: 0.18039216, a: 1}
+    strokeColor: {r: 0.38039216, g: 1, b: 0.29411766, a: 1}
   - id: 5
-    color: {r: 0.02, g: 0.36, b: 0.95, a: 1}
+    visualColor: {r: 0.047058824, g: 0.48235294, b: 0.99607843, a: 1}
+    shadowColor: {r: 0.003921569, g: 0.25490198, b: 0.69803923, a: 1}
+    strokeColor: {r: 0.3647059, g: 0.654902, b: 1, a: 1}
   - id: 6
-    color: {r: 0.52, g: 0.26, b: 0.86, a: 1}
+    visualColor: {r: 0.99607843, g: 0.44705883, b: 0.6666667, a: 1}
+    shadowColor: {r: 0.8679245, g: 0.33161268, b: 0.6393326, a: 1}
+    strokeColor: {r: 1, g: 0.3820755, b: 0.59995633, a: 1}
   - id: 7
-    color: {r: 0.48, g: 0.22, b: 0.02, a: 1}
+    visualColor: {r: 0.60784316, g: 0.31764707, b: 0.07058824, a: 1}
+    shadowColor: {r: 0.42745098, g: 0.21568628, b: 0.03529412, a: 1}
+    strokeColor: {r: 0.7411765, g: 0.40784314, b: 0.12156863, a: 1}
   - id: 8
-    color: {r: 0.42, g: 0.45, b: 0.5, a: 1}
+    visualColor: {r: 0.42, g: 0.45, b: 0.5, a: 1}
+    shadowColor: {r: 0.22, g: 0.24, b: 0.28, a: 1}
+    strokeColor: {r: 0.33, g: 0.36, b: 0.4, a: 1}
   previewBrightnessMultiplier: 1.25
   previewWhiteBlend: 0.25
   previewSortingOrder: 8

@@ -1,3 +1,5 @@
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 [System.Serializable]
@@ -75,10 +77,10 @@ public class Cell : MonoBehaviour
     {
         ResolveWalls();
 
-        SetWall(wallLeft, left, sortingOrder + 1);
-        SetWall(wallRight, right, sortingOrder + 1);
+        SetWall(wallLeft, left, sortingOrder + 5);
+        SetWall(wallRight, right, sortingOrder + 5);
         SetWall(wallBack, back, sortingOrder);
-        SetWall(wallFront, front, sortingOrder + 2);
+        SetWall(wallFront, front, sortingOrder + 5);
     }
 
     public void ClearWalls()
@@ -194,5 +196,123 @@ public class Cell : MonoBehaviour
         }
 
         wall.SetActive(active);
+    }
+}
+
+public class CellBounceAnimator : MonoBehaviour
+{
+    private const int NoSortingOverride = int.MinValue;
+
+    private readonly List<SpriteRenderer> sortingRenderers = new List<SpriteRenderer>();
+    private readonly List<int> originalSortingOrders = new List<int>();
+    private Coroutine bounceCoroutine;
+    private bool sortingOrderOverridden;
+
+    public void Play(float delaySeconds, float duration, float height)
+    {
+        Play(delaySeconds, duration, height, NoSortingOverride);
+    }
+
+    public void Play(float delaySeconds, float duration, float height, int raisedSortingOrder)
+    {
+        if (bounceCoroutine != null)
+        {
+            StopCoroutine(bounceCoroutine);
+            bounceCoroutine = null;
+        }
+
+        RestoreSortingOrders();
+        bounceCoroutine = StartCoroutine(PlayRoutine(Mathf.Max(0f, delaySeconds), duration, height, raisedSortingOrder));
+    }
+
+    private IEnumerator PlayRoutine(float delaySeconds, float duration, float height, int raisedSortingOrder)
+    {
+        if (delaySeconds > 0f)
+        {
+            yield return new WaitForSeconds(delaySeconds);
+        }
+
+        ApplyRaisedSortingOrder(raisedSortingOrder);
+
+        Vector3 startPosition = transform.position;
+        float elapsed = 0f;
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float progress = Mathf.Clamp01(elapsed / duration);
+            transform.position = startPosition + Vector3.up * Mathf.Sin(progress * Mathf.PI) * height;
+            yield return null;
+        }
+
+        transform.position = startPosition;
+        RestoreSortingOrders();
+        bounceCoroutine = null;
+    }
+
+    private void ApplyRaisedSortingOrder(int raisedSortingOrder)
+    {
+        if (raisedSortingOrder == NoSortingOverride)
+        {
+            return;
+        }
+
+        SpriteRenderer[] renderers = GetComponentsInChildren<SpriteRenderer>(true);
+        if (renderers.Length == 0)
+        {
+            return;
+        }
+
+        sortingRenderers.Clear();
+        originalSortingOrders.Clear();
+
+        int minSortingOrder = renderers[0].sortingOrder;
+        foreach (SpriteRenderer spriteRenderer in renderers)
+        {
+            if (spriteRenderer != null)
+            {
+                minSortingOrder = Mathf.Min(minSortingOrder, spriteRenderer.sortingOrder);
+            }
+        }
+
+        foreach (SpriteRenderer spriteRenderer in renderers)
+        {
+            if (spriteRenderer == null)
+            {
+                continue;
+            }
+
+            sortingRenderers.Add(spriteRenderer);
+            originalSortingOrders.Add(spriteRenderer.sortingOrder);
+            spriteRenderer.sortingOrder = raisedSortingOrder + (spriteRenderer.sortingOrder - minSortingOrder);
+        }
+
+        sortingOrderOverridden = true;
+    }
+
+    private void RestoreSortingOrders()
+    {
+        if (!sortingOrderOverridden)
+        {
+            return;
+        }
+
+        for (int i = 0; i < sortingRenderers.Count; i++)
+        {
+            SpriteRenderer spriteRenderer = sortingRenderers[i];
+            if (spriteRenderer != null && i < originalSortingOrders.Count)
+            {
+                spriteRenderer.sortingOrder = originalSortingOrders[i];
+            }
+        }
+
+        sortingRenderers.Clear();
+        originalSortingOrders.Clear();
+        sortingOrderOverridden = false;
+    }
+
+    private void OnDisable()
+    {
+        RestoreSortingOrders();
     }
 }

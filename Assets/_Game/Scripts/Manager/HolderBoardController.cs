@@ -3,7 +3,14 @@ using UnityEngine;
 
 public class HolderBoardController : BoardController
 {
-    private const int PlacedBlockHighestSortingOrder = 37;
+    private const int MinimumSortingOrderPerLowerRow = 10;
+    private const int WallBackSortingOffset = 0;
+    private const int PlacedShadowSortingOffset = 1;
+    private const int PlacedVisualSortingOffset = 2;
+    private const int PlacedStrokeSortingOffset = 3;
+    private const int PlacedScrewSortingOffset = 4;
+    private const int WallFrontSortingOffset = 5;
+    private const int RaisedCellSortingOrderOffset = 20;
 
     [SerializeField] private float previewBrightnessMultiplier = 1.75f;
     [SerializeField, Range(0f, 1f)] private float previewWhiteBlend = 0.25f;
@@ -21,6 +28,30 @@ public class HolderBoardController : BoardController
     private readonly Dictionary<Vector2Int, HolderSlot> holderSlots = new Dictionary<Vector2Int, HolderSlot>();
     private readonly Dictionary<Vector2Int, Block> occupiedCells = new Dictionary<Vector2Int, Block>();
     private readonly List<Vector2Int> previewedCells = new List<Vector2Int>();
+
+    public int PlacedBlockSortingOrder => GetPlacedCellVisualSortingOrder(Vector2Int.zero);
+    public int PlacedBlockShadowSortingOrder => holderSortingOrder + 3;
+    public int RaisedCellSortingOrder => GetMaxWallFrontSortingOrder() + RaisedCellSortingOrderOffset;
+
+    public int GetPlacedCellShadowSortingOrder(Vector2Int position)
+    {
+        return GetDepthRowSortingOrder(position) + PlacedShadowSortingOffset;
+    }
+
+    public int GetPlacedCellVisualSortingOrder(Vector2Int position)
+    {
+        return GetDepthRowSortingOrder(position) + PlacedVisualSortingOffset;
+    }
+
+    public int GetPlacedCellStrokeSortingOrder(Vector2Int position)
+    {
+        return GetDepthRowSortingOrder(position) + PlacedStrokeSortingOffset;
+    }
+
+    public int GetPlacedCellScrewSortingOrder(Vector2Int position)
+    {
+        return GetDepthRowSortingOrder(position) + PlacedScrewSortingOffset;
+    }
 
     public void BuildHolder(Vector2Int size, List<HolderCellData> holderCells)
     {
@@ -233,8 +264,7 @@ public class HolderBoardController : BoardController
     public bool DoesCellBottomTouchShadowBlockingWall(Vector2Int position)
     {
         Vector2Int belowPosition = position + Vector2Int.down;
-        bool touchesBelowBackWall = holderSlots.TryGetValue(belowPosition, out HolderSlot belowSlot) && HasBackWall(belowPosition, belowSlot.data.color);
-        return touchesBelowBackWall || HasFrontWall(position);
+        return holderSlots.TryGetValue(belowPosition, out HolderSlot belowSlot) && HasBackWall(belowPosition, belowSlot.data.color);
     }
 
     private void RefreshHolderWalls()
@@ -246,8 +276,8 @@ public class HolderBoardController : BoardController
             BlockColorId colorId = holderSlot.data.color;
 
             holderSlot.view.SetWalls(
-                IsColorBoundary(position, colorId, Vector2Int.left),
-                IsColorBoundary(position, colorId, Vector2Int.right),
+                HasLeftWall(position, colorId),
+                HasRightWall(position, colorId),
                 HasBackWall(position, colorId),
                 HasFrontWall(position),
                 GetWallSortingOrder(position)
@@ -265,17 +295,38 @@ public class HolderBoardController : BoardController
         return holderSlots.ContainsKey(position) && !holderSlots.ContainsKey(position + Vector2Int.down);
     }
 
-    private bool IsColorBoundary(Vector2Int position, BlockColorId colorId, Vector2Int direction)
+    private bool HasLeftWall(Vector2Int position, BlockColorId colorId)
     {
-        Vector2Int neighborPosition = position + direction;
-        return !holderSlots.TryGetValue(neighborPosition, out HolderSlot neighborSlot) || neighborSlot.data.color != colorId;
+        Vector2Int leftPosition = position + Vector2Int.left;
+        if (!holderSlots.TryGetValue(leftPosition, out HolderSlot leftSlot))
+        {
+            return true;
+        }
+
+        return leftSlot.data.color == colorId ? false : !HasRightWall(leftPosition, leftSlot.data.color);
+    }
+
+    private bool HasRightWall(Vector2Int position, BlockColorId colorId)
+    {
+        Vector2Int rightPosition = position + Vector2Int.right;
+        return !holderSlots.TryGetValue(rightPosition, out HolderSlot rightSlot) || rightSlot.data.color != colorId;
     }
 
     private int GetWallSortingOrder(Vector2Int position)
     {
+        return GetDepthRowSortingOrder(position) + WallBackSortingOffset;
+    }
+
+    private int GetMaxWallFrontSortingOrder()
+    {
+        return GetWallSortingOrder(new Vector2Int(0, 0)) + WallFrontSortingOffset;
+    }
+
+    private int GetDepthRowSortingOrder(Vector2Int position)
+    {
         int rowsBelowTop = BoardSize.y - 1 - position.y;
-        int safeBaseOrder = Mathf.Max(wallSortingOrderBase, PlacedBlockHighestSortingOrder + 1);
-        return safeBaseOrder + rowsBelowTop * wallSortingOrderPerLowerRow;
+        int rowStep = Mathf.Max(wallSortingOrderPerLowerRow, MinimumSortingOrderPerLowerRow);
+        return wallSortingOrderBase + rowsBelowTop * rowStep;
     }
 
     private void ClearOccupancy(Block block)
@@ -302,8 +353,8 @@ public class HolderBoardController : BoardController
 
         foreach (ColoredCellData blockCell in block.Cells)
         {
-            Vector3 currentCellWorld = blockWorldPosition + new Vector3(blockCell.offset.x * block.CellSize, blockCell.offset.y * block.CellSize, 0f);
-            Vector3 targetCellWorld = GridToWorld(anchor + blockCell.offset);
+            Vector3 currentCellWorld = block.GetCellColliderWorldPosition(blockWorldPosition, blockCell.offset);
+            Vector3 targetCellWorld = GridToWorld(anchor + blockCell.offset) + CellColliderWorldOffset;
             maxDistance = Mathf.Max(maxDistance, Vector2.Distance(currentCellWorld, targetCellWorld));
         }
 
@@ -312,7 +363,7 @@ public class HolderBoardController : BoardController
 
     private Color GetBaseHolderColor(BlockColorId colorId)
     {
-        Color color = GetColor(colorId);
+        Color color = GetVisualColor(colorId);
         return new Color(color.r * 0.7f, color.g * 0.7f, color.b * 0.7f, color.a);
     }
 
