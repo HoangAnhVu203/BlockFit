@@ -177,6 +177,11 @@ public class BlockFitLevelDesignerWindow : EditorWindow
                 TrimHolderToPaintedCells();
             }
 
+            if (GUILayout.Button("Clear Holder Colors", GUILayout.Height(28)))
+            {
+                ClearHolderColors();
+            }
+
             if (GUILayout.Button("Create Sample Level", GUILayout.Height(28)))
             {
                 CreateSampleLevel();
@@ -192,6 +197,15 @@ public class BlockFitLevelDesignerWindow : EditorWindow
                 validationMessage = "Level cleared.";
             }
         }
+    }
+
+    private void ClearHolderColors()
+    {
+        holderCells.Clear();
+        fixedBlocks.Clear();
+        activeFixedBlockIndex = -1;
+        editFixedBlocksOnHolder = false;
+        validationMessage = "Holder colors cleared.";
     }
 
     private void DrawPaintPalette()
@@ -269,9 +283,14 @@ public class BlockFitLevelDesignerWindow : EditorWindow
             }
         }
 
-        EditorGUILayout.HelpBox("Fixed blocks are drawn directly on the holder. Select a fixed block, then click holder cells to mark where it starts locked.", MessageType.None);
+        EditorGUILayout.HelpBox("Workflow: paint holder colors first, press + Fixed Block, keep Edit Fixed On Holder enabled, then click painted cells in BoardHolder Painter below. Fixed cells show as F1, F2, ...", MessageType.None);
 
         editFixedBlocksOnHolder = EditorGUILayout.Toggle("Edit Fixed On Holder", editFixedBlocksOnHolder);
+
+        if (editFixedBlocksOnHolder && activeFixedBlockIndex < 0)
+        {
+            EditorGUILayout.HelpBox("Select a fixed block or press + Fixed Block before clicking holder cells.", MessageType.Warning);
+        }
 
         for (int fixedIndex = 0; fixedIndex < fixedBlocks.Count; fixedIndex++)
         {
@@ -978,6 +997,7 @@ public class BlockFitLevelDesignerWindow : EditorWindow
         if (existingCellIndex >= 0)
         {
             fixedBlock.cells.RemoveAt(existingCellIndex);
+            validationMessage = $"Removed fixed cell at {holderPosition}.";
         }
         else
         {
@@ -986,6 +1006,7 @@ public class BlockFitLevelDesignerWindow : EditorWindow
                 offset = holderPosition - fixedBlock.holderAnchor,
                 color = holderColor
             });
+            validationMessage = $"Added fixed cell at {holderPosition}.";
         }
 
         NormalizeFixedBlock(fixedBlock);
