@@ -17,6 +17,11 @@ public class LevelPrefab : MonoBehaviour
     public IReadOnlyList<FixedHolderBlockData> FixedBlocks => fixedBlocks;
     public IReadOnlyList<PieceWaveData> Waves => waves;
 
+    private void OnValidate()
+    {
+        holderSize = HolderBoardController.ClampHolderSize(holderSize);
+    }
+
     public void SetData(
         string id,
         Vector2Int newHolderSize,
@@ -26,7 +31,7 @@ public class LevelPrefab : MonoBehaviour
         IEnumerable<PieceWaveData> newWaves)
     {
         levelId = string.IsNullOrWhiteSpace(id) ? name : id;
-        holderSize = newHolderSize;
+        holderSize = HolderBoardController.ClampHolderSize(newHolderSize);
         traySize = newTraySize;
         holderCells = LevelDataUtility.CloneHolderCells(newHolderCells);
         fixedBlocks = LevelDataUtility.CloneFixedBlocks(newFixedBlocks);

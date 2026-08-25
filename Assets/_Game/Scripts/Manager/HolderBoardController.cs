@@ -3,6 +3,8 @@ using UnityEngine;
 
 public class HolderBoardController : BoardController
 {
+    public const int MaxHolderSize = 20;
+
     private const int MinimumSortingOrderPerLowerRow = 10;
     private const int WallBackSortingOffset = 0;
     private const int PlacedShadowSortingOffset = 1;
@@ -33,6 +35,13 @@ public class HolderBoardController : BoardController
     public int PlacedBlockShadowSortingOrder => holderSortingOrder + 3;
     public int RaisedCellSortingOrder => GetMaxWallFrontSortingOrder() + RaisedCellSortingOrderOffset;
 
+    public static Vector2Int ClampHolderSize(Vector2Int size)
+    {
+        size.x = Mathf.Clamp(size.x, 1, MaxHolderSize);
+        size.y = Mathf.Clamp(size.y, 1, MaxHolderSize);
+        return size;
+    }
+
     public int GetPlacedCellShadowSortingOrder(Vector2Int position)
     {
         return GetDepthRowSortingOrder(position) + PlacedShadowSortingOffset;
@@ -55,6 +64,7 @@ public class HolderBoardController : BoardController
 
     public void BuildHolder(Vector2Int size, List<HolderCellData> holderCells)
     {
+        size = ClampHolderSize(size);
         SetBoardSize(size);
         holderSlots.Clear();
         occupiedCells.Clear();

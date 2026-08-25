@@ -46,7 +46,7 @@ public abstract class BoardController : MonoBehaviour
 
     public float CellSize => runtimeCellSize > 0f ? runtimeCellSize : cellSize;
     public Vector2Int BoardSize => boardSize;
-    public Vector3 CellColliderWorldOffset => GetPrefabColliderWorldOffset(cellPrefab);
+    public Vector3 CellColliderWorldOffset => GetPrefabColliderWorldOffset(cellPrefab, GetRuntimeCellScale());
 
     public void SetBaseCellSize(float newCellSize)
     {
@@ -67,7 +67,7 @@ public abstract class BoardController : MonoBehaviour
         GameObject cellObject = Instantiate(cellPrefab, GetRoot());
         cellObject.transform.position = GridToWorld(gridPosition);
         cellObject.transform.localRotation = cellPrefab.transform.localRotation;
-        cellObject.transform.localScale = cellPrefab.transform.localScale;
+        cellObject.transform.localScale = cellPrefab.transform.localScale * GetRuntimeCellScale();
 
         Cell cell = cellObject.GetComponent<Cell>();
         if (cell == null)
@@ -204,7 +204,13 @@ public abstract class BoardController : MonoBehaviour
         return Mathf.Approximately(scale, 0f) ? 1f : 1f / scale;
     }
 
-    private Vector3 GetPrefabColliderWorldOffset(GameObject prefab)
+    private float GetRuntimeCellScale()
+    {
+        float baseCellSize = Mathf.Max(minCellSize, cellSize);
+        return Mathf.Approximately(baseCellSize, 0f) ? 1f : CellSize / baseCellSize;
+    }
+
+    private Vector3 GetPrefabColliderWorldOffset(GameObject prefab, float scaleMultiplier = 1f)
     {
         if (prefab == null)
         {
@@ -219,8 +225,8 @@ public abstract class BoardController : MonoBehaviour
 
         Vector3 prefabScale = prefab.transform.localScale;
         return new Vector3(
-            boxCollider.offset.x * prefabScale.x,
-            boxCollider.offset.y * prefabScale.y,
+            boxCollider.offset.x * prefabScale.x * scaleMultiplier,
+            boxCollider.offset.y * prefabScale.y * scaleMultiplier,
             0f
         );
     }

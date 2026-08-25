@@ -5,8 +5,8 @@ using UnityEngine;
 
 public class BlockFitLevelDesignerWindow : EditorWindow
 {
-    private const int MaxHolderSize = 12;
-    private const int MaxPieceGridSize = 12;
+    private const int MaxHolderSize = HolderBoardController.MaxHolderSize;
+    private const int MaxTraySize = 12;
     private const string DefaultLevelPrefabFolder = "Assets/_Game/Prefabs/_Level";
 
     [SerializeField] private LevelManager levelManager;
@@ -15,7 +15,6 @@ public class BlockFitLevelDesignerWindow : EditorWindow
     [SerializeField] private Vector2Int holderSize = new Vector2Int(7, 4);
     [SerializeField] private Vector2Int traySize = new Vector2Int(7, 3);
     [SerializeField] private BlockColorId paintColor = BlockColorId.Red;
-    [SerializeField] private Vector2Int piecePainterSize = new Vector2Int(7, 3);
     [SerializeField] private List<HolderCellData> holderCells = new List<HolderCellData>();
     [SerializeField] private List<FixedHolderBlockData> fixedBlocks = new List<FixedHolderBlockData>();
     [SerializeField] private List<PieceWaveData> waves = new List<PieceWaveData>();
@@ -24,6 +23,9 @@ public class BlockFitLevelDesignerWindow : EditorWindow
     private string validationMessage = "No validation yet.";
     private int activeFixedBlockIndex = -1;
     private bool editFixedBlocksOnHolder;
+    private readonly List<Vector2Int> draftPieceTrayPositions = new List<Vector2Int>();
+    private int draftPieceWaveIndex = -1;
+    private BlockColorId draftPieceColor = BlockColorId.None;
 
     [MenuItem("BlockFit/Level Designer")]
     public static void Open()
@@ -46,6 +48,7 @@ public class BlockFitLevelDesignerWindow : EditorWindow
 
     private void OnGUI()
     {
+        FinishDraftPieceIfShiftReleased();
         DrawToolbar();
 
         if (levelManager == null)
@@ -54,11 +57,12 @@ public class BlockFitLevelDesignerWindow : EditorWindow
             return;
         }
 
+        DrawPaintPalette();
+
         scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition);
 
         DrawLevelPrefabTools();
         DrawBoardSettings();
-        DrawPaintPalette();
         DrawFixedBlocks();
         DrawHolderPainter();
         DrawWaves();
@@ -151,14 +155,8 @@ public class BlockFitLevelDesignerWindow : EditorWindow
         EditorGUI.BeginChangeCheck();
         holderSize = EditorGUILayout.Vector2IntField("Holder Size", holderSize);
         traySize = EditorGUILayout.Vector2IntField("Tray Size", traySize);
-        piecePainterSize = EditorGUILayout.Vector2IntField("Piece Painter Size", piecePainterSize);
 
-        holderSize.x = Mathf.Clamp(holderSize.x, 1, MaxHolderSize);
-        holderSize.y = Mathf.Clamp(holderSize.y, 1, MaxHolderSize);
-        traySize.x = Mathf.Clamp(traySize.x, 1, MaxHolderSize);
-        traySize.y = Mathf.Clamp(traySize.y, 1, MaxHolderSize);
-        piecePainterSize.x = Mathf.Clamp(piecePainterSize.x, 1, MaxPieceGridSize);
-        piecePainterSize.y = Mathf.Clamp(piecePainterSize.y, 1, MaxPieceGridSize);
+        ClampBoardSettings();
 
         if (EditorGUI.EndChangeCheck())
         {
@@ -167,11 +165,6 @@ public class BlockFitLevelDesignerWindow : EditorWindow
 
         using (new EditorGUILayout.HorizontalScope())
         {
-            if (GUILayout.Button("Painter = Tray", GUILayout.Height(28)))
-            {
-                piecePainterSize = traySize;
-            }
-
             if (GUILayout.Button("Trim Holder", GUILayout.Height(28)))
             {
                 TrimHolderToPaintedCells();
@@ -364,17 +357,15 @@ public class BlockFitLevelDesignerWindow : EditorWindow
                 {
                     EditorGUILayout.LabelField($"Wave {waveIndex + 1}", EditorStyles.boldLabel);
 
-                    if (GUILayout.Button("+ Piece", GUILayout.Width(80)))
-                    {
-                        wave.pieces.Add(new LevelPieceData { id = $"wave{waveIndex + 1}_piece{wave.pieces.Count + 1}" });
-                    }
-
                     if (GUILayout.Button("Remove Wave", GUILayout.Width(110)))
                     {
+                        CancelDraftPieceForWave(waveIndex);
                         waves.RemoveAt(waveIndex);
                         break;
                     }
                 }
+
+                DrawWaveTrayPainter(wave, waveIndex);
 
                 for (int pieceIndex = 0; pieceIndex < wave.pieces.Count; pieceIndex++)
                 {
@@ -382,6 +373,56 @@ public class BlockFitLevelDesignerWindow : EditorWindow
                 }
             }
         }
+    }
+
+    private void DrawWaveTrayPainter(PieceWaveData wave, int waveIndex)
+    {
+        EditorGUILayout.LabelField($"Tray Board - Wave {waveIndex + 1}");
+        EditorGUILayout.HelpBox("Hold Shift and paint on the tray. Release Shift to finish one piece.", MessageType.None);
+
+        for (int y = traySize.y - 1; y >= 0; y--)
+        {
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.Space(18);
+                for (int x = 0; x < traySize.x; x++)
+                {
+                    DrawTrayCellButton(wave, waveIndex, new Vector2Int(x, y));
+                }
+            }
+        }
+    }
+
+    private void DrawTrayCellButton(PieceWaveData wave, int waveIndex, Vector2Int trayPosition)
+    {
+        BlockColorId colorId = GetTrayCellColor(wave, trayPosition);
+        int ownerPieceIndex = GetPieceIndexAtTrayPosition(wave, trayPosition);
+        bool isDraftCell = IsDraftPieceCell(waveIndex, trayPosition);
+        Color buttonColor = colorId == BlockColorId.None ? new Color(0.24f, 0.24f, 0.24f) : ColorFor(colorId);
+
+        if (isDraftCell)
+        {
+            buttonColor = Color.Lerp(ColorFor(draftPieceColor), Color.white, 0.35f);
+        }
+
+        Color previousColor = GUI.backgroundColor;
+        GUI.backgroundColor = buttonColor;
+
+        string label = colorId == BlockColorId.None ? "." : ShortName(colorId);
+        if (ownerPieceIndex >= 0)
+        {
+            label = $"P{ownerPieceIndex + 1}";
+        }
+        if (isDraftCell)
+        {
+            label = "*";
+        }
+
+        Rect rect = GUILayoutUtility.GetRect(30, 30, GUILayout.Width(30), GUILayout.Height(30));
+        HandleTrayCellInput(wave, waveIndex, trayPosition, rect);
+        GUI.Button(rect, label);
+
+        GUI.backgroundColor = previousColor;
     }
 
     private void DrawPiece(PieceWaveData wave, int waveIndex, int pieceIndex)
@@ -396,6 +437,7 @@ public class BlockFitLevelDesignerWindow : EditorWindow
 
                 if (GUILayout.Button("Remove", GUILayout.Width(70)))
                 {
+                    CancelDraftPieceForWave(waveIndex);
                     wave.pieces.RemoveAt(pieceIndex);
                     return;
                 }
@@ -404,21 +446,7 @@ public class BlockFitLevelDesignerWindow : EditorWindow
             piece.trayPosition = EditorGUILayout.Vector2IntField("Tray Anchor", piece.trayPosition);
             piece.trayPosition.x = Mathf.Clamp(piece.trayPosition.x, 0, Mathf.Max(0, traySize.x - 1));
             piece.trayPosition.y = Mathf.Clamp(piece.trayPosition.y, 0, Mathf.Max(0, traySize.y - 1));
-
-            EditorGUILayout.LabelField($"Piece Painter - Wave {waveIndex + 1}, Piece {pieceIndex + 1}");
-            for (int y = piecePainterSize.y - 1; y >= 0; y--)
-            {
-                using (new EditorGUILayout.HorizontalScope())
-                {
-                    GUILayout.Space(18);
-                    for (int x = 0; x < piecePainterSize.x; x++)
-                    {
-                        Vector2Int offset = new Vector2Int(x, y);
-                        BlockColorId currentColor = GetPieceCellColor(piece, offset);
-                        DrawPaintButton(currentColor, () => SetPieceCellColor(piece, offset, paintColor));
-                    }
-                }
-            }
+            EditorGUILayout.LabelField("Cells", piece.cells.Count.ToString());
         }
     }
 
@@ -502,6 +530,7 @@ public class BlockFitLevelDesignerWindow : EditorWindow
         SerializedObject serializedObject = new SerializedObject(levelManager);
         holderSize = serializedObject.FindProperty("holderSize").vector2IntValue;
         traySize = serializedObject.FindProperty("traySize").vector2IntValue;
+        ClampBoardSettings();
 
         holderCells = ReadHolderCells(serializedObject.FindProperty("holderCells"));
         fixedBlocks = ReadFixedBlocks(serializedObject.FindProperty("fixedBlocks"));
@@ -517,6 +546,8 @@ public class BlockFitLevelDesignerWindow : EditorWindow
             return;
         }
 
+        ClampBoardSettings();
+        RemoveHolderCellsOutsideBoard();
         Undo.RecordObject(levelManager, "Apply BlockFit Level");
 
         SerializedObject serializedObject = new SerializedObject(levelManager);
@@ -542,7 +573,7 @@ public class BlockFitLevelDesignerWindow : EditorWindow
 
         holderSize = prefabAsset.HolderSize;
         traySize = prefabAsset.TraySize;
-        piecePainterSize = traySize;
+        ClampBoardSettings();
         holderCells = LevelDataUtility.CloneHolderCells(prefabAsset.HolderCells);
         fixedBlocks = LevelDataUtility.CloneFixedBlocks(prefabAsset.FixedBlocks);
         waves = LevelDataUtility.CloneWaves(prefabAsset.Waves);
@@ -554,6 +585,8 @@ public class BlockFitLevelDesignerWindow : EditorWindow
 
     private void SaveNewLevelPrefab()
     {
+        ClampBoardSettings();
+        RemoveHolderCellsOutsideBoard();
         string validation = ValidateLevel();
         if (!validation.StartsWith("OK"))
         {
@@ -582,6 +615,8 @@ public class BlockFitLevelDesignerWindow : EditorWindow
 
     private void SaveOverSelectedLevelPrefab()
     {
+        ClampBoardSettings();
+        RemoveHolderCellsOutsideBoard();
         string validation = ValidateLevel();
         if (!validation.StartsWith("OK"))
         {
@@ -694,7 +729,6 @@ public class BlockFitLevelDesignerWindow : EditorWindow
     {
         holderSize = new Vector2Int(7, 4);
         traySize = new Vector2Int(7, 3);
-        piecePainterSize = traySize;
         holderCells.Clear();
         fixedBlocks.Clear();
         waves.Clear();
@@ -894,44 +928,198 @@ public class BlockFitLevelDesignerWindow : EditorWindow
         }
     }
 
-    private BlockColorId GetPieceCellColor(LevelPieceData piece, Vector2Int offset)
+    private BlockColorId GetTrayCellColor(PieceWaveData wave, Vector2Int trayPosition)
     {
-        foreach (ColoredCellData cell in piece.cells)
+        for (int pieceIndex = wave.pieces.Count - 1; pieceIndex >= 0; pieceIndex--)
         {
-            if (cell.offset == offset)
+            LevelPieceData piece = wave.pieces[pieceIndex];
+            foreach (ColoredCellData cell in piece.cells)
             {
-                return cell.color;
+                if (piece.trayPosition + cell.offset == trayPosition)
+                {
+                    return cell.color;
+                }
             }
         }
 
         return BlockColorId.None;
     }
 
-    private void SetPieceCellColor(LevelPieceData piece, Vector2Int offset, BlockColorId colorId)
+    private int GetPieceIndexAtTrayPosition(PieceWaveData wave, Vector2Int trayPosition)
     {
-        for (int i = piece.cells.Count - 1; i >= 0; i--)
+        for (int pieceIndex = wave.pieces.Count - 1; pieceIndex >= 0; pieceIndex--)
         {
-            if (piece.cells[i].offset == offset)
+            LevelPieceData piece = wave.pieces[pieceIndex];
+            foreach (ColoredCellData cell in piece.cells)
             {
-                if (colorId == BlockColorId.None)
+                if (piece.trayPosition + cell.offset == trayPosition)
                 {
-                    piece.cells.RemoveAt(i);
+                    return pieceIndex;
                 }
-                else
-                {
-                    ColoredCellData cell = piece.cells[i];
-                    cell.color = colorId;
-                    piece.cells[i] = cell;
-                }
-
-                return;
             }
         }
 
-        if (colorId != BlockColorId.None)
+        return -1;
+    }
+
+    private void HandleTrayCellInput(PieceWaveData wave, int waveIndex, Vector2Int trayPosition, Rect rect)
+    {
+        Event current = Event.current;
+        if (current == null || current.button != 0)
         {
-            piece.cells.Add(new ColoredCellData { offset = offset, color = colorId });
+            return;
         }
+
+        if (current.type == EventType.MouseDown && current.shift && rect.Contains(current.mousePosition))
+        {
+            FinishDraftPieceForOtherWave(waveIndex);
+            BeginDraftPiece(waveIndex);
+            AddDraftPieceCell(trayPosition);
+            current.Use();
+            Repaint();
+            return;
+        }
+
+        if (current.type == EventType.MouseDrag && current.shift && draftPieceWaveIndex == waveIndex && rect.Contains(current.mousePosition))
+        {
+            AddDraftPieceCell(trayPosition);
+            current.Use();
+            Repaint();
+            return;
+        }
+
+        if (current.type == EventType.MouseUp && draftPieceWaveIndex == waveIndex)
+        {
+            if (rect.Contains(current.mousePosition))
+            {
+                AddDraftPieceCell(trayPosition);
+            }
+
+            if (!current.shift)
+            {
+                FinishDraftPiece(wave, waveIndex);
+            }
+
+            current.Use();
+            Repaint();
+        }
+    }
+
+    private void BeginDraftPiece(int waveIndex)
+    {
+        if (draftPieceWaveIndex != waveIndex)
+        {
+            draftPieceTrayPositions.Clear();
+        }
+
+        draftPieceWaveIndex = waveIndex;
+        draftPieceColor = paintColor;
+    }
+
+    private void AddDraftPieceCell(Vector2Int trayPosition)
+    {
+        if (draftPieceColor == BlockColorId.None || draftPieceTrayPositions.Contains(trayPosition))
+        {
+            return;
+        }
+
+        draftPieceTrayPositions.Add(trayPosition);
+    }
+
+    private void FinishDraftPieceIfShiftReleased()
+    {
+        if (draftPieceWaveIndex < 0 || Event.current == null || Event.current.shift)
+        {
+            return;
+        }
+
+        if (draftPieceWaveIndex < waves.Count)
+        {
+            FinishDraftPiece(waves[draftPieceWaveIndex], draftPieceWaveIndex);
+        }
+        else
+        {
+            ClearDraftPiece();
+        }
+
+        Repaint();
+    }
+
+    private void FinishDraftPiece(PieceWaveData wave, int waveIndex)
+    {
+        if (draftPieceWaveIndex != waveIndex)
+        {
+            return;
+        }
+
+        if (draftPieceTrayPositions.Count == 0 || draftPieceColor == BlockColorId.None)
+        {
+            ClearDraftPiece();
+            return;
+        }
+
+        Vector2Int min = draftPieceTrayPositions[0];
+        foreach (Vector2Int trayPosition in draftPieceTrayPositions)
+        {
+            min.x = Mathf.Min(min.x, trayPosition.x);
+            min.y = Mathf.Min(min.y, trayPosition.y);
+        }
+
+        LevelPieceData piece = new LevelPieceData
+        {
+            id = $"wave{waveIndex + 1}_piece{wave.pieces.Count + 1}",
+            trayPosition = min
+        };
+
+        foreach (Vector2Int trayPosition in draftPieceTrayPositions)
+        {
+            piece.cells.Add(new ColoredCellData
+            {
+                offset = trayPosition - min,
+                color = draftPieceColor
+            });
+        }
+
+        wave.pieces.Add(piece);
+        validationMessage = $"Added {piece.id} with {piece.cells.Count} cells.";
+        ClearDraftPiece();
+    }
+
+    private void FinishDraftPieceForOtherWave(int waveIndex)
+    {
+        if (draftPieceWaveIndex < 0 || draftPieceWaveIndex == waveIndex)
+        {
+            return;
+        }
+
+        if (draftPieceWaveIndex < waves.Count)
+        {
+            FinishDraftPiece(waves[draftPieceWaveIndex], draftPieceWaveIndex);
+        }
+        else
+        {
+            ClearDraftPiece();
+        }
+    }
+
+    private void CancelDraftPieceForWave(int waveIndex)
+    {
+        if (draftPieceWaveIndex == waveIndex)
+        {
+            ClearDraftPiece();
+        }
+    }
+
+    private bool IsDraftPieceCell(int waveIndex, Vector2Int trayPosition)
+    {
+        return draftPieceWaveIndex == waveIndex && draftPieceTrayPositions.Contains(trayPosition);
+    }
+
+    private void ClearDraftPiece()
+    {
+        draftPieceWaveIndex = -1;
+        draftPieceColor = BlockColorId.None;
+        draftPieceTrayPositions.Clear();
     }
 
     private bool IsEditingFixedBlock()
@@ -1133,7 +1321,17 @@ public class BlockFitLevelDesignerWindow : EditorWindow
         }
 
         holderSize = new Vector2Int(max.x - min.x + 1, max.y - min.y + 1);
+        ClampBoardSettings();
+        RemoveHolderCellsOutsideBoard();
         validationMessage = $"Holder trimmed to {holderSize.x}x{holderSize.y}.";
+    }
+
+    private void ClampBoardSettings()
+    {
+        holderSize.x = Mathf.Clamp(holderSize.x, 1, MaxHolderSize);
+        holderSize.y = Mathf.Clamp(holderSize.y, 1, MaxHolderSize);
+        traySize.x = Mathf.Clamp(traySize.x, 1, MaxTraySize);
+        traySize.y = Mathf.Clamp(traySize.y, 1, MaxTraySize);
     }
 
     private Dictionary<BlockColorId, int> CountHolderCells()

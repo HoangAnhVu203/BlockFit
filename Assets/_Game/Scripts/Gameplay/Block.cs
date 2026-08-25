@@ -20,6 +20,7 @@ public class Block : MonoBehaviour
     private const float TraySpawnRiseDistanceCells = 1.4f;
     private const float CompletedColorBounceDuration = 0.28f;
     private const float CompletedColorBounceHeightCells = 0.18f;
+    private const float DragStartThresholdPixels = 6f;
 
     private readonly List<ColoredCellData> cells = new List<ColoredCellData>();
     private readonly List<SpriteRenderer> screwRenderers = new List<SpriteRenderer>();
@@ -28,13 +29,18 @@ public class Block : MonoBehaviour
     private TrayBoardController trayBoard;
     private LevelManager levelManager;
     private GameObject singleBlockPrefab;
+    private float prefabCellSize = 1f;
     private float cellSize = 1f;
     private int traySortingOrder = DefaultTraySortingOrder;
     private Vector3 dragOffset;
+    private Vector2 dragStartScreenPosition;
     private Vector3 trayWorldPosition;
     private Vector3 previousHolderWorldPosition;
     private Vector2Int previousHolderAnchor;
     private bool isDragging;
+    private bool isPendingDrag;
+    private bool hasValidHolderPlacement;
+    private bool draggingStartedFromHolder;
     private bool strokeVisible = true;
     private bool hasFixedScrews;
     private bool fixedScrewReleaseStarted;
@@ -66,13 +72,31 @@ public class Block : MonoBehaviour
 
         if (WasPointerPressedThisFrame())
         {
-            TryBeginInputSystemDrag();
+            TryBeginPointerInteraction();
         }
 
-        if (activeDragBlock == this && isDragging)
+        if (activeDragBlock != this)
         {
-            transform.position = GetPointerWorldPosition() + dragOffset;
-            UpdateHolderPreview();
+            return;
+        }
+
+        if (isPendingDrag)
+        {
+            if (WasPointerReleasedThisFrame())
+            {
+                CancelPointerInteraction();
+                return;
+            }
+
+            if (HasPointerMovedPastDragThreshold())
+            {
+                BeginInputSystemDrag();
+            }
+        }
+
+        if (isDragging)
+        {
+            UpdateDragPosition();
 
             if (WasPointerReleasedThisFrame())
             {
@@ -94,10 +118,12 @@ public class Block : MonoBehaviour
         trayBoard = tray;
         levelManager = owner;
         singleBlockPrefab = blockPrefab;
-        cellSize = GetPrefabCellSize(singleBlockPrefab);
+        prefabCellSize = GetPrefabCellSize(singleBlockPrefab);
+        cellSize = trayBoard == null ? prefabCellSize : trayBoard.CellSize;
         traySortingOrder = initialTraySortingOrder;
         State = PieceState.InTray;
         IsMovable = true;
+        hasValidHolderPlacement = false;
         hasFixedScrews = false;
         fixedScrewReleaseStarted = false;
 
@@ -120,9 +146,11 @@ public class Block : MonoBehaviour
         trayBoard = null;
         levelManager = owner;
         singleBlockPrefab = blockPrefab;
-        cellSize = GetPrefabCellSize(singleBlockPrefab);
+        prefabCellSize = GetPrefabCellSize(singleBlockPrefab);
+        cellSize = holderBoard == null ? prefabCellSize : holderBoard.CellSize;
         State = PieceState.PlacedOnHolder;
         IsMovable = false;
+        hasValidHolderPlacement = true;
         hasFixedScrews = true;
         fixedScrewReleaseStarted = false;
 
@@ -136,9 +164,12 @@ public class Block : MonoBehaviour
     public void MoveToTray(Vector2Int trayPosition)
     {
         StopTraySpawnJelly(true);
+        SetCellSize(trayBoard == null ? prefabCellSize : trayBoard.CellSize);
         trayWorldPosition = trayBoard.GridToWorld(trayPosition);
         transform.position = trayWorldPosition;
         State = PieceState.InTray;
+        hasValidHolderPlacement = false;
+        draggingStartedFromHolder = false;
         SetBlockShadowVisible(true);
         SetSortingOrder(traySortingOrder);
     }
@@ -156,11 +187,14 @@ public class Block : MonoBehaviour
 
     public void SnapToHolder(Vector2Int anchor)
     {
+        SetCellSize(holderBoard == null ? prefabCellSize : holderBoard.CellSize);
         HolderAnchor = anchor;
         transform.position = GetHolderSnapWorldPosition(anchor);
         previousHolderAnchor = anchor;
         previousHolderWorldPosition = transform.position;
         State = PieceState.PlacedOnHolder;
+        hasValidHolderPlacement = true;
+        draggingStartedFromHolder = false;
         ApplyHolderPlacementShadowVisibility(anchor);
         SetSortingOrder(GetPlacedHolderSortingOrder());
         ApplyPlacedHolderCellSorting(anchor);
@@ -171,6 +205,21 @@ public class Block : MonoBehaviour
         return rootWorldPosition
             + new Vector3(cellOffset.x * cellSize, cellOffset.y * cellSize, 0f)
             + GetSingleBlockColliderWorldOffset();
+    }
+
+    private void SetCellSize(float newCellSize)
+    {
+        newCellSize = Mathf.Max(0.01f, newCellSize);
+        if (Mathf.Approximately(cellSize, newCellSize))
+        {
+            return;
+        }
+
+        cellSize = newCellSize;
+        if (singleBlockPrefab != null && cells.Count > 0)
+        {
+            BuildVisuals();
+        }
     }
 
     private void BuildVisuals()
@@ -188,7 +237,7 @@ public class Block : MonoBehaviour
             GameObject cellObject = Instantiate(singleBlockPrefab, transform);
             cellObject.transform.localPosition = new Vector3(cellData.offset.x * cellSize, cellData.offset.y * cellSize, 0f);
             cellObject.transform.localRotation = singleBlockPrefab.transform.localRotation;
-            cellObject.transform.localScale = singleBlockPrefab.transform.localScale;
+            cellObject.transform.localScale = GetScaledSingleBlockPrefabScale();
 
             Cell cell = cellObject.GetComponent<Cell>();
             if (cell == null)
@@ -463,11 +512,22 @@ public class Block : MonoBehaviour
         }
 
         Vector3 prefabScale = singleBlockPrefab.transform.localScale;
+        float scaleMultiplier = GetCellScaleMultiplier();
         return new Vector3(
-            boxCollider.offset.x * prefabScale.x,
-            boxCollider.offset.y * prefabScale.y,
+            boxCollider.offset.x * prefabScale.x * scaleMultiplier,
+            boxCollider.offset.y * prefabScale.y * scaleMultiplier,
             0f
         );
+    }
+
+    private Vector3 GetScaledSingleBlockPrefabScale()
+    {
+        return singleBlockPrefab.transform.localScale * GetCellScaleMultiplier();
+    }
+
+    private float GetCellScaleMultiplier()
+    {
+        return Mathf.Approximately(prefabCellSize, 0f) ? 1f : cellSize / prefabCellSize;
     }
 
     private void ConfigureScrew(GameObject cellObject, bool visible, int sortingOrder)
@@ -888,32 +948,53 @@ public class Block : MonoBehaviour
         return 1f;
     }
 
-    private void TryBeginInputSystemDrag()
+    private void TryBeginPointerInteraction()
     {
         if (activeDragBlock != null || !CanDragCurrentState() || GetTopBlockUnderPointer() != this)
         {
             return;
         }
 
-        isDragging = true;
+        isPendingDrag = true;
         activeDragBlock = this;
-        StopTraySpawnJelly(true);
+        dragStartScreenPosition = GetPointerScreenPosition();
+        dragOffset = transform.position - GetPointerWorldPosition();
+    }
 
-        if (State == PieceState.InTray)
+    private void BeginInputSystemDrag()
+    {
+        if (!isPendingDrag || activeDragBlock != this)
         {
-            State = PieceState.DraggingFromTray;
+            return;
+        }
+
+        isPendingDrag = false;
+        isDragging = true;
+        draggingStartedFromHolder = State == PieceState.PlacedOnHolder || hasValidHolderPlacement;
+
+        if (draggingStartedFromHolder)
+        {
+            previousHolderAnchor = HolderAnchor;
+            previousHolderWorldPosition = transform.position;
+            StopTraySpawnJelly(false);
+            State = PieceState.DraggingFromHolder;
         }
         else
         {
-            State = PieceState.DraggingFromHolder;
-            previousHolderAnchor = HolderAnchor;
-            previousHolderWorldPosition = transform.position;
+            StopTraySpawnJelly(true);
+            State = PieceState.DraggingFromTray;
+            SetCellSize(holderBoard == null ? prefabCellSize : holderBoard.CellSize);
         }
 
-        dragOffset = transform.position - GetPointerWorldPosition();
         SetBlockShadowVisible(true);
         SetStrokeVisible(true);
         SetSortingOrder(100);
+        UpdateHolderPreview();
+    }
+
+    private void UpdateDragPosition()
+    {
+        transform.position = GetPointerWorldPosition() + dragOffset;
         UpdateHolderPreview();
     }
 
@@ -926,12 +1007,14 @@ public class Block : MonoBehaviour
 
         isDragging = false;
         activeDragBlock = null;
+        isPendingDrag = false;
         holderBoard.ClearPreview();
 
         if (holderBoard.TryFindBestPlacement(this, transform.position, out Vector2Int anchor))
         {
             holderBoard.PlaceBlock(this, anchor);
             levelManager.HandleBlockPlaced(this);
+            draggingStartedFromHolder = false;
             return;
         }
 
@@ -945,25 +1028,37 @@ public class Block : MonoBehaviour
 
     private void CancelActiveDragIfNeeded()
     {
-        if (activeDragBlock != this || !isDragging)
+        if (activeDragBlock != this)
+        {
+            return;
+        }
+
+        if (isPendingDrag)
+        {
+            CancelPointerInteraction();
+            return;
+        }
+
+        if (!isDragging)
         {
             return;
         }
 
         isDragging = false;
         activeDragBlock = null;
+        isPendingDrag = false;
         holderBoard.ClearPreview();
         ReturnToLastValidPosition();
     }
 
     private bool CanDragCurrentState()
     {
-        return IsMovable && (State == PieceState.InTray || State == PieceState.PlacedOnHolder);
+        return IsMovable && (State == PieceState.InTray || State == PieceState.PlacedOnHolder || hasValidHolderPlacement);
     }
 
     private void ReturnToLastValidPosition()
     {
-        if (State == PieceState.DraggingFromHolder)
+        if (draggingStartedFromHolder || hasValidHolderPlacement)
         {
             HolderAnchor = previousHolderAnchor;
             transform.position = previousHolderWorldPosition;
@@ -972,13 +1067,28 @@ public class Block : MonoBehaviour
             SetSortingOrder(GetPlacedHolderSortingOrder());
             ApplyPlacedHolderCellSorting(previousHolderAnchor);
             levelManager.RefreshCompletedBlockStrokes();
+            draggingStartedFromHolder = false;
             return;
         }
 
         transform.position = trayWorldPosition;
         State = PieceState.InTray;
+        hasValidHolderPlacement = false;
+        draggingStartedFromHolder = false;
         SetBlockShadowVisible(true);
         SetSortingOrder(traySortingOrder);
+    }
+
+    private void CancelPointerInteraction()
+    {
+        isPendingDrag = false;
+        isDragging = false;
+        activeDragBlock = null;
+    }
+
+    private bool HasPointerMovedPastDragThreshold()
+    {
+        return Vector2.Distance(GetPointerScreenPosition(), dragStartScreenPosition) >= DragStartThresholdPixels;
     }
 
     private void UpdateHolderPreview()

@@ -43,6 +43,11 @@ public class LevelManager : MonoBehaviour
 
     public HolderBoardController HolderBoard => holderBoard;
 
+    private void OnValidate()
+    {
+        holderSize = HolderBoardController.ClampHolderSize(holderSize);
+    }
+
     public int CurrentLevelNumber
     {
         get
@@ -246,7 +251,7 @@ public class LevelManager : MonoBehaviour
 
     private void ApplyLevelPrefab(LevelPrefab levelPrefab)
     {
-        holderSize = levelPrefab.HolderSize;
+        holderSize = HolderBoardController.ClampHolderSize(levelPrefab.HolderSize);
         traySize = levelPrefab.TraySize;
         holderCells = LevelDataUtility.CloneHolderCells(levelPrefab.HolderCells);
         fixedBlocks = LevelDataUtility.CloneFixedBlocks(levelPrefab.FixedBlocks);
