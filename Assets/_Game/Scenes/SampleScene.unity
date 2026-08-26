@@ -317,6 +317,10 @@ MonoBehaviour:
     visualColor: {r: 0.42, g: 0.45, b: 0.5, a: 1}
     shadowColor: {r: 0.22, g: 0.24, b: 0.28, a: 1}
     strokeColor: {r: 0.33, g: 0.36, b: 0.4, a: 1}
+  previewBrightnessMultiplier: 1.15
+  previewWhiteBlend: 0.1
+  previewSortingOrder: 8
+  traySortingOrder: 0
 --- !u!4 &812221889
 Transform:
   m_ObjectHideFlags: 0
@@ -759,6 +763,14 @@ MonoBehaviour:
   - {fileID: 3389793432839481997, guid: b11e882b4b10c4f118602b22c58ecb92, type: 3}
   - {fileID: 9004441932871684363, guid: a08ac483a4b2549bf943eb8145f6a4d1, type: 3}
   - {fileID: 3385360470760499808, guid: 316cc410ab29649389dcd76f933a098b, type: 3}
+  - {fileID: 6494503934385054914, guid: 6fe0c6bf12ee74020bfbb360b0d10f88, type: 3}
+  - {fileID: 7164189492927888146, guid: daf8a6ae1ad2e463cb8303f144fc6eff, type: 3}
+  - {fileID: 8681502719340864884, guid: aa0f9e67b6e084aa9b47a1f32f2c8540, type: 3}
+  - {fileID: 4085129758587910149, guid: 04ab44659165f4584801aa5118470dcf, type: 3}
+  - {fileID: 7352745273058729720, guid: de4d7d883e02d47e880a388d31c8782a, type: 3}
+  - {fileID: 834015082880726177, guid: 8837c4396409b4a50b02530ce08f07fa, type: 3}
+  - {fileID: 6924890853436711583, guid: 74c4d209f67d44f2fbb9f2fbb577a36e, type: 3}
+  - {fileID: 5264113916146060279, guid: 197c11c75824444e3a698020d013079e, type: 3}
   startingLevelIndex: 0
   holderSize: {x: 10, y: 13}
   traySize: {x: 7, y: 3}

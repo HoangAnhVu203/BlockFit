@@ -32,4 +32,12 @@ public class PanelGameplay : UICanvas
 
         return texts.Length == 0 ? null : texts[0];
     }
+
+    public void NextLvBtn()
+    {
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.StartNextLevel();
+        }
+    }
 }

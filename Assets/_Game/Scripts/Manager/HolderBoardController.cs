@@ -208,6 +208,11 @@ public class HolderBoardController : BoardController
         block.SnapToHolder(anchor);
     }
 
+    public void RemoveBlock(Block block)
+    {
+        ClearOccupancy(block);
+    }
+
     public bool IsComplete()
     {
         foreach (Vector2Int position in holderSlots.Keys)

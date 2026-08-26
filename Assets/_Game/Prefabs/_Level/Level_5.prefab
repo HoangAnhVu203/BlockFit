@@ -228,11 +228,11 @@ MonoBehaviour:
       - offset: {x: 4, y: 2}
         color: 2
     - id: wave5_piece4
-      trayPosition: {x: 0, y: 0}
+      trayPosition: {x: 5, y: 0}
       cells:
-      - offset: {x: 4, y: 0}
+      - offset: {x: 1, y: 1}
         color: 5
-      - offset: {x: 6, y: 0}
+      - offset: {x: 1, y: 0}
         color: 5
-      - offset: {x: 5, y: 0}
+      - offset: {x: 0, y: 0}
         color: 5
