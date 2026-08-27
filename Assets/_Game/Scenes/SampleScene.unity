@@ -771,272 +771,133 @@ MonoBehaviour:
   - {fileID: 834015082880726177, guid: 8837c4396409b4a50b02530ce08f07fa, type: 3}
   - {fileID: 6924890853436711583, guid: 74c4d209f67d44f2fbb9f2fbb577a36e, type: 3}
   - {fileID: 5264113916146060279, guid: 197c11c75824444e3a698020d013079e, type: 3}
+  - {fileID: 3121538237575500796, guid: dad138dd0b69744e5979393ff89b705c, type: 3}
+  - {fileID: 8614760510032521691, guid: 756fd65654a024cd19e7b7f760fa64b8, type: 3}
+  - {fileID: 4462058885129395407, guid: 08d58196a335d407ea8215edb0307675, type: 3}
+  - {fileID: 7393515866164618925, guid: f66a41bce9b5b40beb5ee369d673593a, type: 3}
+  - {fileID: 685012800848549760, guid: 8abaff8ef31a64e95b8656c32cf8060b, type: 3}
+  - {fileID: 1089419610685190175, guid: d5e5b3636f4444df0af5d42239ec301d, type: 3}
+  - {fileID: 1802133949450842468, guid: 2a55faee53f1b43bcab7dd489d21b7dc, type: 3}
+  - {fileID: 2895443147985341279, guid: a3ce9e7ab215e4c6a8d22107e885f692, type: 3}
+  - {fileID: 749667963382597753, guid: 58491ac7961034a4ba6c70a3ddeb2ac0, type: 3}
+  - {fileID: 6547231533801031371, guid: e73db5d0ddf8541e8a60607ce855b293, type: 3}
+  - {fileID: 8520886868391909096, guid: 85d19f55b5a5146f1a6f92739f6a775a, type: 3}
+  - {fileID: 4302566473538816185, guid: 29358544c750247759f25951d6db1b2b, type: 3}
+  - {fileID: 3694268962495365190, guid: dc5b54018ab304a9ea1127b71e6dc347, type: 3}
+  - {fileID: 5427308078644382747, guid: 402d77613754742d8a5f02c060e3fe0b, type: 3}
+  - {fileID: 1892522101408650654, guid: cfaf0caa6500e4548b94ec82163425d2, type: 3}
+  - {fileID: 6593939605495965569, guid: 1ca00ac89b184475aa865ad65dc97e19, type: 3}
+  - {fileID: 2502309632676255693, guid: 01a843fd18fe44cf9bd4aa3344cda5b3, type: 3}
+  - {fileID: 6955133168352487744, guid: cebce7e4eb4254bfba1956b10e8ba4d8, type: 3}
+  - {fileID: 1582246535497586036, guid: 638f54de6d44444a58ba919ca1f9c858, type: 3}
+  - {fileID: 8202777185339632086, guid: fd7479d8057bc4677a73453f8191e87b, type: 3}
+  - {fileID: 5667485241415321488, guid: 39bf7da5b33604cf29e31fdea3276d6b, type: 3}
+  - {fileID: 1892731708031026106, guid: c33a9d0f2af824a278a9a55e3e95e3c3, type: 3}
+  - {fileID: 6124387212364279978, guid: 8a08f8129b3914fa4bcbaa5d02428241, type: 3}
+  - {fileID: 3896395089519821324, guid: 142f96f902de94f30882ba132c0868e5, type: 3}
+  - {fileID: 1426679298142263791, guid: b27b7403d543b4c8cb6192bceaa47edb, type: 3}
+  - {fileID: 6834517579629690142, guid: fac709e6b142e49b28128854d579bc02, type: 3}
+  - {fileID: 4315947786075504035, guid: adb36cf7916a640fbbf34318baaec070, type: 3}
+  - {fileID: 8941845493698003395, guid: db98fc26db0a7403b9b655ee0ec900dc, type: 3}
+  - {fileID: 2674647967707817163, guid: 844085a2590704a85a3d9543164959a2, type: 3}
+  - {fileID: 3253970229823016421, guid: ba8294125db8c4cd3ae372b4a0c2dc94, type: 3}
+  - {fileID: 5033425673257041742, guid: 7d331a6580ff64dd59b79bb916c203b2, type: 3}
+  - {fileID: 7884224357854599675, guid: c43503bb485e549c79a52d4929fc1b38, type: 3}
+  - {fileID: 8987192731456528349, guid: e4b53758259b34e24b78fef59a29db6e, type: 3}
   startingLevelIndex: 0
-  holderSize: {x: 10, y: 13}
+  holderSize: {x: 8, y: 6}
   traySize: {x: 7, y: 3}
   holderCells:
-  - position: {x: 0, y: 5}
-    color: 4
-  - position: {x: 1, y: 5}
-    color: 4
-  - position: {x: 2, y: 5}
-    color: 4
-  - position: {x: 3, y: 5}
-    color: 4
-  - position: {x: 4, y: 5}
-    color: 4
-  - position: {x: 6, y: 5}
-    color: 4
-  - position: {x: 5, y: 5}
-    color: 4
-  - position: {x: 7, y: 5}
-    color: 4
-  - position: {x: 8, y: 5}
-    color: 4
-  - position: {x: 9, y: 5}
-    color: 4
-  - position: {x: 0, y: 6}
-    color: 4
-  - position: {x: 2, y: 6}
-    color: 4
-  - position: {x: 3, y: 6}
-    color: 4
-  - position: {x: 4, y: 6}
-    color: 4
-  - position: {x: 5, y: 6}
-    color: 4
-  - position: {x: 6, y: 6}
-    color: 4
-  - position: {x: 7, y: 6}
-    color: 4
-  - position: {x: 8, y: 6}
-    color: 4
-  - position: {x: 7, y: 7}
-    color: 4
-  - position: {x: 8, y: 7}
-    color: 4
-  - position: {x: 9, y: 7}
-    color: 4
-  - position: {x: 2, y: 7}
-    color: 4
-  - position: {x: 5, y: 7}
-    color: 4
-  - position: {x: 1, y: 8}
-    color: 4
-  - position: {x: 2, y: 8}
-    color: 4
-  - position: {x: 3, y: 8}
-    color: 4
-  - position: {x: 8, y: 8}
-    color: 4
-  - position: {x: 9, y: 8}
-    color: 4
-  - position: {x: 8, y: 9}
-    color: 4
-  - position: {x: 7, y: 9}
-    color: 4
-  - position: {x: 6, y: 9}
-    color: 4
-  - position: {x: 5, y: 9}
-    color: 4
-  - position: {x: 2, y: 9}
-    color: 4
-  - position: {x: 3, y: 9}
-    color: 4
-  - position: {x: 3, y: 10}
-    color: 4
-  - position: {x: 4, y: 10}
-    color: 4
-  - position: {x: 6, y: 10}
-    color: 4
-  - position: {x: 7, y: 10}
-    color: 4
-  - position: {x: 4, y: 11}
-    color: 4
-  - position: {x: 5, y: 11}
-    color: 4
-  - position: {x: 6, y: 11}
-    color: 4
-  - position: {x: 5, y: 12}
-    color: 4
-  - position: {x: 6, y: 4}
+  - position: {x: 0, y: 2}
     color: 3
-  - position: {x: 5, y: 4}
+  - position: {x: 0, y: 3}
     color: 3
-  - position: {x: 5, y: 3}
+  - position: {x: 1, y: 2}
     color: 3
-  - position: {x: 4, y: 3}
+  - position: {x: 1, y: 1}
     color: 3
-  - position: {x: 4, y: 2}
+  - position: {x: 1, y: 0}
     color: 3
-  - position: {x: 4, y: 1}
+  - position: {x: 2, y: 0}
     color: 3
-  - position: {x: 5, y: 1}
+  - position: {x: 3, y: 0}
     color: 3
-  - position: {x: 6, y: 1}
-    color: 3
-  - position: {x: 6, y: 0}
+  - position: {x: 4, y: 0}
     color: 3
   - position: {x: 5, y: 0}
     color: 3
+  - position: {x: 7, y: 0}
+    color: 3
+  - position: {x: 6, y: 0}
+    color: 3
+  - position: {x: 6, y: 1}
+    color: 3
+  - position: {x: 7, y: 1}
+    color: 3
+  - position: {x: 6, y: 2}
+    color: 3
+  - position: {x: 7, y: 2}
+    color: 3
+  - position: {x: 0, y: 4}
+    color: 2
+  - position: {x: 0, y: 5}
+    color: 2
+  - position: {x: 1, y: 5}
+    color: 2
+  - position: {x: 1, y: 4}
+    color: 2
+  - position: {x: 1, y: 3}
+    color: 2
+  - position: {x: 2, y: 3}
+    color: 2
+  - position: {x: 2, y: 4}
+    color: 2
+  - position: {x: 2, y: 5}
+    color: 2
+  - position: {x: 3, y: 5}
+    color: 2
+  - position: {x: 3, y: 4}
+    color: 2
+  - position: {x: 2, y: 2}
+    color: 2
+  - position: {x: 2, y: 1}
+    color: 2
+  - position: {x: 3, y: 1}
+    color: 2
+  - position: {x: 4, y: 1}
+    color: 2
+  - position: {x: 5, y: 1}
+    color: 2
+  - position: {x: 3, y: 3}
+    color: 1
+  - position: {x: 3, y: 2}
+    color: 1
+  - position: {x: 4, y: 2}
+    color: 1
+  - position: {x: 4, y: 3}
+    color: 1
+  - position: {x: 5, y: 3}
+    color: 1
+  - position: {x: 5, y: 2}
+    color: 1
+  - position: {x: 6, y: 3}
+    color: 1
+  - position: {x: 7, y: 3}
+    color: 1
+  - position: {x: 7, y: 4}
+    color: 1
+  - position: {x: 6, y: 4}
+    color: 1
+  - position: {x: 5, y: 4}
+    color: 1
+  - position: {x: 5, y: 5}
+    color: 1
+  - position: {x: 6, y: 5}
+    color: 1
+  - position: {x: 7, y: 5}
+    color: 1
   fixedBlocks: []
-  waves:
-  - pieces:
-    - id: wave1_piece1
-      trayPosition: {x: 3, y: 0}
-      cells:
-      - offset: {x: 0, y: 1}
-        color: 3
-      - offset: {x: 0, y: 0}
-        color: 3
-      - offset: {x: 1, y: 1}
-        color: 3
-    - id: wave1_piece2
-      trayPosition: {x: 6, y: 0}
-      cells:
-      - offset: {x: 0, y: 0}
-        color: 3
-    - id: wave1_piece3
-      trayPosition: {x: 2, y: 1}
-      cells:
-      - offset: {x: 0, y: 0}
-        color: 4
-      - offset: {x: 0, y: 1}
-        color: 4
-      - offset: {x: 1, y: 1}
-        color: 4
-    - id: wave1_piece4
-      trayPosition: {x: 0, y: 0}
-      cells:
-      - offset: {x: 0, y: 1}
-        color: 4
-      - offset: {x: 0, y: 0}
-        color: 4
-      - offset: {x: 1, y: 0}
-        color: 4
-  - pieces:
-    - id: wave2_piece1
-      trayPosition: {x: 0, y: 0}
-      cells:
-      - offset: {x: 1, y: 2}
-        color: 4
-      - offset: {x: 1, y: 1}
-        color: 4
-      - offset: {x: 0, y: 1}
-        color: 4
-      - offset: {x: 0, y: 0}
-        color: 4
-    - id: wave2_piece2
-      trayPosition: {x: 2, y: 0}
-      cells:
-      - offset: {x: 0, y: 0}
-        color: 4
-      - offset: {x: 1, y: 0}
-        color: 4
-      - offset: {x: 2, y: 0}
-        color: 4
-    - id: wave2_piece3
-      trayPosition: {x: 4, y: 1}
-      cells:
-      - offset: {x: 0, y: 1}
-        color: 4
-      - offset: {x: 0, y: 0}
-        color: 4
-    - id: wave2_piece4
-      trayPosition: {x: 5, y: 0}
-      cells:
-      - offset: {x: 0, y: 2}
-        color: 4
-      - offset: {x: 0, y: 1}
-        color: 4
-      - offset: {x: 1, y: 1}
-        color: 4
-      - offset: {x: 1, y: 0}
-        color: 4
-  - pieces:
-    - id: wave3_piece1
-      trayPosition: {x: 0, y: 1}
-      cells:
-      - offset: {x: 2, y: 1}
-        color: 4
-      - offset: {x: 2, y: 0}
-        color: 4
-      - offset: {x: 1, y: 0}
-        color: 4
-      - offset: {x: 0, y: 0}
-        color: 4
-    - id: wave3_piece2
-      trayPosition: {x: 2, y: 0}
-      cells:
-      - offset: {x: 1, y: 1}
-        color: 4
-      - offset: {x: 1, y: 0}
-        color: 4
-      - offset: {x: 0, y: 0}
-        color: 4
-      - offset: {x: 2, y: 0}
-        color: 4
-    - id: wave3_piece3
-      trayPosition: {x: 5, y: 0}
-      cells:
-      - offset: {x: 0, y: 1}
-        color: 4
-      - offset: {x: 1, y: 1}
-        color: 4
-      - offset: {x: 1, y: 0}
-        color: 4
-      - offset: {x: 1, y: 2}
-        color: 4
-    - id: wave3_piece4
-      trayPosition: {x: 3, y: 2}
-      cells:
-      - offset: {x: 0, y: 0}
-        color: 3
-      - offset: {x: 1, y: 0}
-        color: 3
-  - pieces:
-    - id: wave4_piece1
-      trayPosition: {x: 1, y: 0}
-      cells:
-      - offset: {x: 0, y: 2}
-        color: 4
-      - offset: {x: 0, y: 1}
-        color: 4
-      - offset: {x: 1, y: 1}
-        color: 4
-      - offset: {x: 1, y: 0}
-        color: 4
-    - id: wave4_piece2
-      trayPosition: {x: 3, y: 1}
-      cells:
-      - offset: {x: 0, y: 1}
-        color: 4
-      - offset: {x: 1, y: 1}
-        color: 4
-      - offset: {x: 1, y: 0}
-        color: 4
-    - id: wave4_piece3
-      trayPosition: {x: 5, y: 0}
-      cells:
-      - offset: {x: 0, y: 0}
-        color: 4
-      - offset: {x: 1, y: 0}
-        color: 4
-      - offset: {x: 1, y: 1}
-        color: 4
-      - offset: {x: 1, y: 2}
-        color: 4
-    - id: wave4_piece4
-      trayPosition: {x: 0, y: 0}
-      cells:
-      - offset: {x: 0, y: 2}
-        color: 3
-      - offset: {x: 0, y: 1}
-        color: 3
-      - offset: {x: 0, y: 0}
-        color: 3
-      - offset: {x: 1, y: 0}
-        color: 3
+  waves: []
 --- !u!1 &1867952075
 GameObject:
   m_ObjectHideFlags: 0

@@ -7,6 +7,7 @@ public class Block : MonoBehaviour
 {
     private static Block activeDragBlock;
     private const int DefaultTraySortingOrder = 20;
+    private const int DraggingSortingOrder = 10000;
     private const string ScrewObjectName = "Screws";
     private const string StrokeObjectName = "Stroke";
     private const string VisualObjectName = "Visual";
@@ -1039,7 +1040,7 @@ public class Block : MonoBehaviour
 
         SetBlockShadowVisible(true);
         SetStrokeVisible(true);
-        SetSortingOrder(100);
+        SetSortingOrder(DraggingSortingOrder);
         UpdatePlacementPreview();
     }
 
@@ -1060,7 +1061,7 @@ public class Block : MonoBehaviour
         SetCellSize(newCellSize);
         RefreshDragOffsetForCellSize(previousCellSize);
         transform.position = GetPointerWorldPosition() + dragOffset;
-        SetSortingOrder(100);
+        SetSortingOrder(DraggingSortingOrder);
     }
 
     private void RefreshDragOffsetForCellSize(float previousCellSize)
@@ -1416,10 +1417,10 @@ public class Block : MonoBehaviour
         switch (State)
         {
             case PieceState.InTray:
-            case PieceState.DraggingFromTray:
                 return traySortingOrder;
+            case PieceState.DraggingFromTray:
             case PieceState.DraggingFromHolder:
-                return 100;
+                return DraggingSortingOrder;
             case PieceState.PlacedOnHolder:
                 return GetPlacedHolderSortingOrder();
             default:
