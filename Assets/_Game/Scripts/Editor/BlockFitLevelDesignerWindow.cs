@@ -760,6 +760,8 @@ public class BlockFitLevelDesignerWindow : EditorWindow
         Dictionary<BlockColorId, int> holderCounts = CountHolderCells();
         Dictionary<BlockColorId, int> pieceCounts = CountPieceCells();
         List<string> errors = new List<string>();
+        int pieceCellCount = 0;
+        int grayHolderCount = GetCount(holderCounts, BlockColorId.Gray);
 
         if (holderCells.Count == 0)
         {
@@ -771,9 +773,22 @@ public class BlockFitLevelDesignerWindow : EditorWindow
             errors.Add("Level has no waves.");
         }
 
+        foreach (KeyValuePair<BlockColorId, int> pair in pieceCounts)
+        {
+            if (pair.Key != BlockColorId.None)
+            {
+                pieceCellCount += pair.Value;
+            }
+        }
+
+        if (holderCells.Count != pieceCellCount)
+        {
+            errors.Add($"Holder has {holderCells.Count} cells, pieces have {pieceCellCount}.");
+        }
+
         foreach (BlockColorId colorId in GetPaintableColors())
         {
-            if (colorId == BlockColorId.None)
+            if (colorId == BlockColorId.None || colorId == BlockColorId.Gray)
             {
                 continue;
             }
@@ -781,11 +796,17 @@ public class BlockFitLevelDesignerWindow : EditorWindow
             holderCounts.TryGetValue(colorId, out int holderCount);
             pieceCounts.TryGetValue(colorId, out int pieceCount);
 
-            if (holderCount != pieceCount)
+            if (grayHolderCount == 0 && holderCount != pieceCount)
             {
                 errors.Add($"{colorId}: holder has {holderCount}, pieces have {pieceCount}.");
             }
+            else if (grayHolderCount > 0 && pieceCount < holderCount)
+            {
+                errors.Add($"{colorId}: holder needs at least {holderCount}, pieces have {pieceCount}.");
+            }
         }
+
+        ValidateGrayWildcardFill(holderCounts, pieceCounts, errors);
 
         ValidateFixedBlocks(errors);
 
@@ -820,6 +841,44 @@ public class BlockFitLevelDesignerWindow : EditorWindow
         return errors.Count == 0 ? $"OK - {holderCells.Count} holder cells, {fixedBlocks.Count} fixed blocks, {waves.Count} waves." : string.Join("\n", errors);
     }
 
+    private void ValidateGrayWildcardFill(
+        Dictionary<BlockColorId, int> holderCounts,
+        Dictionary<BlockColorId, int> pieceCounts,
+        List<string> errors)
+    {
+        int grayHolderCount = GetCount(holderCounts, BlockColorId.Gray);
+        if (grayHolderCount == 0)
+        {
+            return;
+        }
+
+        int wildcardFillColors = 0;
+        foreach (BlockColorId colorId in GetPaintableColors())
+        {
+            if (colorId == BlockColorId.None)
+            {
+                continue;
+            }
+
+            int requiredExactCells = colorId == BlockColorId.Gray ? 0 : GetCount(holderCounts, colorId);
+            int extraCellsForGray = Mathf.Max(0, GetCount(pieceCounts, colorId) - requiredExactCells);
+            if (extraCellsForGray > 0)
+            {
+                wildcardFillColors++;
+            }
+        }
+
+        if (wildcardFillColors > 1)
+        {
+            errors.Add("Gray holder cells must be filled by one piece color only.");
+        }
+    }
+
+    private int GetCount(Dictionary<BlockColorId, int> counts, BlockColorId colorId)
+    {
+        return counts.TryGetValue(colorId, out int count) ? count : 0;
+    }
+
     private void ValidateFixedBlocks(List<string> errors)
     {
         Dictionary<Vector2Int, string> occupiedPositions = new Dictionary<Vector2Int, string>();
@@ -848,7 +907,10 @@ public class BlockFitLevelDesignerWindow : EditorWindow
 
                 if (holderColor != cell.color)
                 {
-                    errors.Add($"{blockName} needs {cell.color} at {holderPosition}, but holder is {holderColor}.");
+                    if (holderColor != BlockColorId.Gray)
+                    {
+                        errors.Add($"{blockName} needs {cell.color} at {holderPosition}, but holder is {holderColor}.");
+                    }
                 }
 
                 if (occupiedPositions.TryGetValue(holderPosition, out string occupyingBlock))

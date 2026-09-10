@@ -1,0 +1,205 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &6761596237412154380
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7583284121769004730}
+  - component: {fileID: 8737729235099780233}
+  m_Layer: 0
+  m_Name: Level_164
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7583284121769004730
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6761596237412154380}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &8737729235099780233
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6761596237412154380}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6c5b92cb0bc44444d9079ca91241f87f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LevelPrefab
+  levelId: Level_164
+  holderSize: {x: 7, y: 7}
+  traySize: {x: 7, y: 3}
+  holderCells:
+  - position: {x: 0, y: 4}
+    color: 1
+  - position: {x: 0, y: 0}
+    color: 1
+  - position: {x: 1, y: 0}
+    color: 1
+  - position: {x: 2, y: 0}
+    color: 1
+  - position: {x: 0, y: 1}
+    color: 1
+  - position: {x: 0, y: 2}
+    color: 1
+  - position: {x: 0, y: 3}
+    color: 1
+  - position: {x: 1, y: 4}
+    color: 8
+  - position: {x: 1, y: 3}
+    color: 8
+  - position: {x: 1, y: 2}
+    color: 8
+  - position: {x: 1, y: 1}
+    color: 8
+  - position: {x: 2, y: 4}
+    color: 4
+  - position: {x: 3, y: 4}
+    color: 4
+  - position: {x: 3, y: 3}
+    color: 4
+  - position: {x: 4, y: 3}
+    color: 4
+  - position: {x: 3, y: 2}
+    color: 4
+  - position: {x: 4, y: 2}
+    color: 4
+  - position: {x: 5, y: 5}
+    color: 4
+  - position: {x: 6, y: 5}
+    color: 4
+  - position: {x: 6, y: 6}
+    color: 4
+  - position: {x: 6, y: 4}
+    color: 4
+  - position: {x: 6, y: 3}
+    color: 4
+  - position: {x: 5, y: 4}
+    color: 5
+  - position: {x: 5, y: 3}
+    color: 5
+  - position: {x: 5, y: 2}
+    color: 5
+  - position: {x: 5, y: 1}
+    color: 5
+  - position: {x: 4, y: 1}
+    color: 5
+  - position: {x: 4, y: 0}
+    color: 5
+  - position: {x: 5, y: 0}
+    color: 5
+  - position: {x: 3, y: 0}
+    color: 5
+  fixedBlocks: []
+  waves:
+  - pieces:
+    - id: wave1_piece1
+      trayPosition: {x: 0, y: 1}
+      cells:
+      - offset: {x: 0, y: 1}
+        color: 4
+      - offset: {x: 1, y: 1}
+        color: 4
+      - offset: {x: 1, y: 0}
+        color: 4
+      - offset: {x: 2, y: 0}
+        color: 4
+    - id: wave1_piece2
+      trayPosition: {x: 3, y: 0}
+      cells:
+      - offset: {x: 0, y: 0}
+        color: 5
+      - offset: {x: 1, y: 0}
+        color: 5
+    - id: wave1_piece3
+      trayPosition: {x: 6, y: 0}
+      cells:
+      - offset: {x: 0, y: 2}
+        color: 1
+      - offset: {x: 0, y: 1}
+        color: 1
+      - offset: {x: 0, y: 0}
+        color: 1
+  - pieces:
+    - id: wave2_piece1
+      trayPosition: {x: 0, y: 0}
+      cells:
+      - offset: {x: 0, y: 0}
+        color: 1
+      - offset: {x: 0, y: 1}
+        color: 1
+      - offset: {x: 0, y: 2}
+        color: 1
+      - offset: {x: 1, y: 2}
+        color: 1
+    - id: wave2_piece2
+      trayPosition: {x: 2, y: 0}
+      cells:
+      - offset: {x: 0, y: 1}
+        color: 5
+      - offset: {x: 0, y: 0}
+        color: 5
+    - id: wave2_piece3
+      trayPosition: {x: 5, y: 0}
+      cells:
+      - offset: {x: 0, y: 1}
+        color: 5
+      - offset: {x: 1, y: 1}
+        color: 5
+      - offset: {x: 1, y: 2}
+        color: 5
+      - offset: {x: 1, y: 0}
+        color: 5
+    - id: wave2_piece4
+      trayPosition: {x: 3, y: 2}
+      cells:
+      - offset: {x: 0, y: 0}
+        color: 4
+      - offset: {x: 1, y: 0}
+        color: 4
+  - pieces:
+    - id: wave3_piece1
+      trayPosition: {x: 3, y: 1}
+      cells:
+      - offset: {x: 0, y: 1}
+        color: 4
+      - offset: {x: 0, y: 0}
+        color: 4
+    - id: wave3_piece2
+      trayPosition: {x: 5, y: 0}
+      cells:
+      - offset: {x: 0, y: 0}
+        color: 4
+      - offset: {x: 1, y: 0}
+        color: 4
+      - offset: {x: 1, y: 1}
+        color: 4
+    - id: wave3_piece3
+      trayPosition: {x: 0, y: 0}
+      cells:
+      - offset: {x: 0, y: 1}
+        color: 1
+      - offset: {x: 0, y: 0}
+        color: 1
+      - offset: {x: 1, y: 0}
+        color: 1
+      - offset: {x: 2, y: 0}
+        color: 1

@@ -361,12 +361,13 @@ public class LevelManager : Singleton<LevelManager>
     private void DetachCompletedColorCells(BlockColorId colorId)
     {
         newlyDetachedCells.Clear();
+        HashSet<Vector2Int> completedHolderPositions = holderBoard.GetCompletedHolderPositions(colorId);
 
         foreach (Block block in allBlocks)
         {
             if (block != null)
             {
-                block.DetachCompletedColorCells(colorId, transform, newlyDetachedCells);
+                block.DetachCompletedHolderCells(completedHolderPositions, transform, newlyDetachedCells);
             }
         }
 

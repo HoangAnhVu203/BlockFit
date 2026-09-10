@@ -749,6 +749,38 @@ public class Block : MonoBehaviour
         }
     }
 
+    public void DetachCompletedHolderCells(HashSet<Vector2Int> holderPositions, Transform detachedParent, List<Cell> detachedCells)
+    {
+        if (State != PieceState.PlacedOnHolder || holderPositions == null || holderPositions.Count == 0)
+        {
+            return;
+        }
+
+        bool detachedAnyCell = false;
+        Cell[] childCells = GetComponentsInChildren<Cell>(true);
+        foreach (Cell cell in childCells)
+        {
+            if (cell == null || !holderPositions.Contains(HolderAnchor + cell.GridPosition))
+            {
+                continue;
+            }
+
+            SetCellStrokesVisible(cell.gameObject, false, GetBaseSortingOrderForState());
+            cell.transform.SetParent(detachedParent, true);
+            detachedAnyCell = true;
+
+            if (detachedCells != null && !detachedCells.Contains(cell))
+            {
+                detachedCells.Add(cell);
+            }
+        }
+
+        if (detachedAnyCell)
+        {
+            RefreshStrokeVisibility();
+        }
+    }
+
     private void SetCellStrokesVisible(GameObject cellObject, bool visible, int sortingOrder)
     {
         foreach (SpriteRenderer strokeRenderer in GetStrokeRenderers(cellObject))

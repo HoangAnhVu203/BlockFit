@@ -29,6 +29,7 @@ public class HolderBoardController : BoardController
 
     private readonly Dictionary<Vector2Int, HolderSlot> holderSlots = new Dictionary<Vector2Int, HolderSlot>();
     private readonly Dictionary<Vector2Int, Block> occupiedCells = new Dictionary<Vector2Int, Block>();
+    private readonly Dictionary<Vector2Int, BlockColorId> occupiedCellColors = new Dictionary<Vector2Int, BlockColorId>();
     private readonly List<Vector2Int> previewedCells = new List<Vector2Int>();
 
     public int PlacedBlockSortingOrder => GetPlacedCellVisualSortingOrder(Vector2Int.zero);
@@ -68,6 +69,7 @@ public class HolderBoardController : BoardController
         SetBoardSize(size);
         holderSlots.Clear();
         occupiedCells.Clear();
+        occupiedCellColors.Clear();
         previewedCells.Clear();
         ClearChildren();
 
@@ -148,7 +150,7 @@ public class HolderBoardController : BoardController
                 return false;
             }
 
-            if (holderSlot.data.color != blockCell.color)
+            if (!CanCellColorPlaceOnSlot(blockCell.color, holderSlot.data.color))
             {
                 return false;
             }
@@ -202,7 +204,9 @@ public class HolderBoardController : BoardController
 
         foreach (ColoredCellData blockCell in block.Cells)
         {
-            occupiedCells[anchor + blockCell.offset] = block;
+            Vector2Int position = anchor + blockCell.offset;
+            occupiedCells[position] = block;
+            occupiedCellColors[position] = blockCell.color;
         }
 
         block.SnapToHolder(anchor);
@@ -223,39 +227,45 @@ public class HolderBoardController : BoardController
             }
         }
 
+        if (HasHolderColor(BlockColorId.Gray) && !IsGrayWildcardComplete())
+        {
+            return false;
+        }
+
         return holderSlots.Count > 0;
     }
 
     public bool AreBlockColorsComplete(Block block)
     {
-        HashSet<BlockColorId> blockColors = new HashSet<BlockColorId>();
+        bool hasColoredCell = false;
 
         foreach (ColoredCellData blockCell in block.Cells)
         {
-            if (blockCell.color != BlockColorId.None)
+            if (blockCell.color == BlockColorId.None)
             {
-                blockColors.Add(blockCell.color);
+                continue;
             }
-        }
 
-        if (blockColors.Count == 0)
-        {
-            return false;
-        }
+            hasColoredCell = true;
+            Vector2Int holderPosition = block.HolderAnchor + blockCell.offset;
+            BlockColorId completionColorId = GetCompletionColorForHolderPosition(holderPosition, blockCell.color);
 
-        foreach (BlockColorId colorId in blockColors)
-        {
-            if (!IsColorComplete(colorId))
+            if (completionColorId == BlockColorId.None || !IsColorComplete(completionColorId))
             {
                 return false;
             }
         }
 
-        return true;
+        return hasColoredCell;
     }
 
     public bool IsColorComplete(BlockColorId colorId)
     {
+        if (colorId == BlockColorId.Gray)
+        {
+            return IsGrayWildcardComplete();
+        }
+
         bool hasColorSlot = false;
 
         foreach (KeyValuePair<Vector2Int, HolderSlot> pair in holderSlots)
@@ -271,9 +281,34 @@ public class HolderBoardController : BoardController
             {
                 return false;
             }
+
+            if (!occupiedCellColors.TryGetValue(pair.Key, out BlockColorId occupiedColor) || occupiedColor != colorId)
+            {
+                return false;
+            }
         }
 
         return hasColorSlot;
+    }
+
+    public HashSet<Vector2Int> GetCompletedHolderPositions(BlockColorId colorId)
+    {
+        HashSet<Vector2Int> completedPositions = new HashSet<Vector2Int>();
+
+        if (!IsColorComplete(colorId))
+        {
+            return completedPositions;
+        }
+
+        foreach (KeyValuePair<Vector2Int, HolderSlot> pair in holderSlots)
+        {
+            if (pair.Value.data.color == colorId)
+            {
+                completedPositions.Add(pair.Key);
+            }
+        }
+
+        return completedPositions;
     }
 
     public bool DoesCellBottomTouchShadowBlockingWall(Vector2Int position)
@@ -359,7 +394,75 @@ public class HolderBoardController : BoardController
         foreach (Vector2Int position in positionsToClear)
         {
             occupiedCells.Remove(position);
+            occupiedCellColors.Remove(position);
         }
+    }
+
+    private bool CanCellColorPlaceOnSlot(BlockColorId blockColor, BlockColorId holderColor)
+    {
+        if (blockColor == BlockColorId.None)
+        {
+            return false;
+        }
+
+        return holderColor == BlockColorId.Gray || holderColor == blockColor;
+    }
+
+    private BlockColorId GetCompletionColorForHolderPosition(Vector2Int holderPosition, BlockColorId fallbackColor)
+    {
+        if (!holderSlots.TryGetValue(holderPosition, out HolderSlot holderSlot))
+        {
+            return BlockColorId.None;
+        }
+
+        return holderSlot.data.color == BlockColorId.Gray ? BlockColorId.Gray : fallbackColor;
+    }
+
+    private bool IsGrayWildcardComplete()
+    {
+        bool hasGraySlot = false;
+        BlockColorId requiredColor = BlockColorId.None;
+
+        foreach (KeyValuePair<Vector2Int, HolderSlot> pair in holderSlots)
+        {
+            if (pair.Value.data.color != BlockColorId.Gray)
+            {
+                continue;
+            }
+
+            hasGraySlot = true;
+
+            if (!occupiedCellColors.TryGetValue(pair.Key, out BlockColorId occupiedColor) || occupiedColor == BlockColorId.None)
+            {
+                return false;
+            }
+
+            if (requiredColor == BlockColorId.None)
+            {
+                requiredColor = occupiedColor;
+                continue;
+            }
+
+            if (requiredColor != occupiedColor)
+            {
+                return false;
+            }
+        }
+
+        return hasGraySlot;
+    }
+
+    private bool HasHolderColor(BlockColorId colorId)
+    {
+        foreach (HolderSlot holderSlot in holderSlots.Values)
+        {
+            if (holderSlot.data.color == colorId)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private float GetPlacementScore(Block block, Vector3 blockWorldPosition, Vector2Int anchor)
